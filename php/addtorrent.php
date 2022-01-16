@@ -6,8 +6,8 @@ set_time_limit(0);
 
 if(isset($_REQUEST['result']))
 {
-	if(isset($_REQUEST['json']))
-		CachedEcho::send( '{ "result" : "'.$_REQUEST['result'][0].'" }',"application/json");
+	if(isset($_REQUEST['json']))	
+		cachedEcho( '{ "result" : "'.$_REQUEST['result'][0].'" }',"application/json");
 	else
 	{
 		$js = '';
@@ -15,14 +15,14 @@ if(isset($_REQUEST['result']))
 			$js.= ('noty("'.(isset($_REQUEST['name'][$ndx]) ? addslashes(rawurldecode(htmlspecialchars($_REQUEST['name'][$ndx]))).' - ' : '').
 				'"+theUILang.addTorrent'.$_REQUEST['result'][$ndx].
 				',"'.($_REQUEST['result'][$ndx]=='Success' ? 'success' : 'error').'");');
-		CachedEcho::send($js,"text/html");
+		cachedEcho($js,"text/html");
 	}
 }
 else
 {
 	$uploaded_files = array();
 	$label = null;
-	if(isset($_REQUEST['label']))
+	if(isset($_REQUEST['label']))	
 		$label = trim($_REQUEST['label']);
 	$dir_edit = null;
 	if(isset($_REQUEST['dir_edit']))
@@ -37,7 +37,7 @@ else
 		{
 			if( is_array($_FILES['torrent_file']['name']) )
 			{
-				for ($i = 0; $i<count($_FILES['torrent_file']['name']); ++$i)
+				for ($i = 0; $i<count($_FILES['torrent_file']['name']); ++$i) 
 				{
 		                        $files[] = array
         		                (
@@ -53,7 +53,7 @@ else
 				$ufile = $file['name'];
 				if(pathinfo($ufile,PATHINFO_EXTENSION)!="torrent")
 					$ufile.=".torrent";
-				$ufile = FileUtil::getUniqueUploadedFilename($ufile);
+				$ufile = getUniqueUploadedFilename($ufile);
 				$ok = move_uploaded_file($file['tmp_name'],$ufile);
 				$uploaded_files[] = array( 'name'=>$file['name'], 'file'=>$ufile, 'status'=>($ok ? "Success" : "Failed") );
 			}
@@ -76,10 +76,10 @@ else
 					$cli = new Snoopy();
 					if(@$cli->fetchComplex($url) && $cli->status>=200 && $cli->status<300)
 					{
-						$name = $cli->get_filename();
-						if($name===false)
+				        	$name = $cli->get_filename();
+					        if($name===false)
 							$name = md5($url).".torrent";
-						$name = FileUtil::getUniqueUploadedFilename($name);
+						$name = getUniqueUploadedFilename($name);
 						$f = @fopen($name,"w");
 						if($f!==false)
 						{
@@ -91,7 +91,7 @@ else
 					}
 					else
 						$uploaded_url['status'] = "FailedURL";
-				}
+				}	
 				$uploaded_files[] = $uploaded_url;
 			}
 		}

@@ -165,7 +165,7 @@ $.fn.extend(
 						e.shiftKey = false;	// for safari
                                                 return(handler.apply(this,arguments));
 					});
-                                        $(this).on('mousedown', function(e)
+                                        $(this).mousedown(function(e)
 					{
 						if(e.which != 3)
 							return(handler.apply(this,arguments));
@@ -174,7 +174,7 @@ $.fn.extend(
 				else
 				if(browser.isOpera)
 				{
-			        	$(this).on('mousedown', function(e)
+			        	$(this).mousedown(function(e)
 					{
 						if(e.which==3)
 						{
@@ -196,7 +196,7 @@ $.fn.extend(
 						}
 						return(handler.apply(this,arguments));
 					});
-					$(this).on('mouseup', function(e)
+					$(this).mouseup(function(e)
 					{
 						var c = $(this).data("btn");
 						if(c)
@@ -209,7 +209,7 @@ $.fn.extend(
 					});
 				}
 				else
-					$(this).on('mousedown', handler );
+					$(this).mousedown( handler );
 			}
 			else
 			{
@@ -226,7 +226,7 @@ $.fn.extend(
 	enableSysMenu: function()
 	{
 		return(this.on("contextmenu",function(e) { e.stopImmediatePropagation(); }).
-			on("selectstart",function(e) { e.stopImmediatePropagation(); return(true); }));
+			bind("selectstart",function(e) { e.stopImmediatePropagation(); return(true); }));
 	},
 
 	setCursorPosition: function(pos)
@@ -300,7 +300,7 @@ function askYesNo( title, content, funcYesName )
 	$("#yesnoDlg-header").html(title);
 	$("#yesnoDlg-content").html(content);
 	$("#yesnoOK").off('click');
-	$("#yesnoOK").on('click', function()
+	$("#yesnoOK").click( function()
 	{
 		typeof(funcYesName)==="function" ? funcYesName() : eval(funcYesName);
 		theDialogManager.hide("yesnoDlg");
@@ -850,10 +850,10 @@ var theTabs =
    		for(var n in this.tabs)
       			s += "<li id=\"tab_" + n + "\"><a href=\"javascript://void();\" onmousedown=\"theTabs.show('" + n + "'); return(false);\" onfocus=\"this.blur();\">" + this.tabs[n] + "</a></li>";
 		$("#tabbar").html(s);
-		$("#tab_lcont").append( $("<input type='button'>").attr("id","clear_log").addClass('Button').val(theUILang.ClearButton).hide().on('click', function()
+		$("#tab_lcont").append( $("<input type='button'>").attr("id","clear_log").addClass('Button').val(theUILang.ClearButton).hide().click( function()
 		{
 			$("#lcont").empty();
-		}).on('focus', function()
+		}).focus( function()
 		{
 			this.blur();
 		}));
@@ -971,38 +971,6 @@ function noty(msg,status,noTime)
 		if(iv(theWebUI.settings["webui.log_autoswitch"]) && !$.noty)
 			theTabs.show("lcont");
 	}
-}
-
-function fallbackCopyToClipboard(text)
-{
-	var textarea = document.createElement("textarea");
-	textarea.textContent = text;
-	textarea.style.position = "fixed";
-	document.body.appendChild(textarea);
-	textarea.select();
-	try {
-		var success = document.execCommand("copy");
-		if(success)
-			noty( theUILang.copyToClipboardSuccess, "success" );
-	} catch (err) {
-		prompt(theUILang.copyToClipboardFailed, text);
-	} finally {
-		document.body.removeChild(textarea);
-	}
-}
-
-function copyToClipboard(text)
-{
-	if (!navigator.clipboard)
-	{
-		fallbackCopyToClipboard(text);
-		return;
-	}
-	navigator.clipboard.writeText(text).then(function() {
-		noty( theUILang.copyToClipboardSuccess, "success" );
-	}, function(err) {
-		fallbackCopyToClipboard(text);
-	});
 }
 
 function rDirectory()
@@ -1623,7 +1591,8 @@ function strip_tags(input, allowed)
 // Caveat: doesn't work with Internet Explorer.
 (function setBrowserTimezoneCookie()
 {
-	try {
+	try 
+	{
 		document.cookie = "browser_timezone="+Intl.DateTimeFormat().resolvedOptions().timeZone
 	} catch(e) {}
 }).apply();

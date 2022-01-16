@@ -2,7 +2,7 @@
 require_once( '../../php/xmlrpc.php' );
 
 if(isset($_REQUEST['result']))
-	CachedEcho::send('noty(theUILang.cantAccessData,"error");',"text/html");
+	cachedEcho('noty(theUILang.cantAccessData,"error");',"text/html");
 
 if(isset($_REQUEST['hash']) && isset($_REQUEST['no']))
 {
@@ -20,13 +20,13 @@ if(isset($_REQUEST['hash']) && isset($_REQUEST['no']))
 			if($req->success())
 				$filename = $req->val[1];
 		}
-		if(SendFile::send($filename))
+		if(sendFile($filename))
 			exit;
 	}
 }
 
 if(isset($_REQUEST['readable']))
-	CachedEcho::send("Cant retrieve such large file, sorry","text/html");
+	cachedEcho("Cant retrieve such large file, sorry","text/html");
 else
 {
 	header("HTTP/1.0 302 Moved Temporarily");

@@ -2,7 +2,7 @@ plugin.loadLang();
 plugin.loadMainCSS();
 
 plugin.config = theWebUI.config;
-theWebUI.config = function()
+theWebUI.config = function(data)
 {
 	if(plugin.canChangeColumns())
 	{
@@ -26,7 +26,7 @@ theWebUI.config = function()
 	{
 		torrent.throttle = value;
 	});
-	plugin.config.call(this);
+	plugin.config.call(this,data);
 	if(plugin.canChangeColumns())
 		plugin.trtRenameColumn();
 }
@@ -112,7 +112,7 @@ if(plugin.canChangeOptions())
 		this.content = "default="+iv($('#chDefault').val());
 		for(var i=0; i<theWebUI.maxThrottle; i++)
 		{
-			var name = $('#thr_name'+i).val().trim();
+			var name = $.trim($('#thr_name'+i).val());
 			var up = iv($('#thr_up'+i).val());
 			var down = iv($('#thr_down'+i).val());
         		if(name.length)

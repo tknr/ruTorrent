@@ -36,9 +36,9 @@ class rpcCache
         
         public function __construct()
         {
-		$this->dir = FileUtil::getSettingsPath()."/httprpc";
+		$this->dir = getSettingsPath()."/httprpc";
 		if(!is_dir($this->dir))
-			FileUtil::makeDirectory($this->dir);
+			makeDirectory($this->dir);
         }
 	
 	protected function store( $torrents = array() )

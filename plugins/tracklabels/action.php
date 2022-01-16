@@ -11,19 +11,19 @@ if(isset($_REQUEST["label"]))
 	$label = function_exists('mb_strtolower')
 		? mb_strtolower(rawurldecode($_REQUEST["label"]), 'utf-8')
 		: strtolower(rawurldecode($_REQUEST["label"]));
-	$name = FileUtil::getSettingsPath().'/labels';
+	$name = getSettingsPath().'/labels';
 	if(!is_dir($name))
-		FileUtil::makeDirectory($name);
+		makeDirectory($name);
 	$name.=('/'.$label.".png");
 	if(is_readable($name))
 	{
-		SendFile::send( $name, "image/png" );
+		sendFile( $name, "image/png" );
 		exit;
 	}
 	$name = dirname(__FILE__)."/labels/".$label.".png";
 	if(is_readable($name))
 	{
-		SendFile::send( $name, "image/png" );
+		sendFile( $name, "image/png" );
 		exit;
 	}
 }
@@ -34,12 +34,12 @@ if(isset($_REQUEST["tracker"]))
 	$name = dirname(__FILE__)."/trackers/".$tracker.".png";
 	if(is_readable($name))
 	{
-		SendFile::send( $name, "image/png" );
+		sendFile( $name, "image/png" );
 		exit;
 	}
-	$name = FileUtil::getSettingsPath().'/trackers';
+	$name = getSettingsPath().'/trackers';
 	if(!is_dir($name))
-		FileUtil::makeDirectory($name);
+		makeDirectory($name);
 	$name.='/';
 	if(strlen($tracker))
 	{
@@ -55,11 +55,12 @@ if(isset($_REQUEST["tracker"]))
 		}
 		if(is_readable($name))
 		{
-			SendFile::send( $name, "image/x-icon" );
+			sendFile( $name, "image/x-icon" );
 			exit;
 		}
 	}
 }
 
-// If we can't find an image, send a generic unknown image and cache for 30 days
-SendFile::sendCachedImage("./trackers/unknown.png", "image/png", "2592000");
+header("HTTP/1.0 302 Moved Temporarily");
+header("Location: ./trackers/unknown.png");
+exit();

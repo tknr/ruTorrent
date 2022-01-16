@@ -278,7 +278,5 @@ var theUILang =
  registerMagnet			: "Регистрировать magnet протокол на старте",
  linkTorTorrentRestored		: "Связь с rTorrent восстановлена.",
  removeAllTegs			: "Удалить все теги",
- Torrents			: "Показано",
- copyToClipboardFailed		: "The copy function isn't working in your browser.\nPlease copy this content manually:\n\n",
- copyToClipboardSuccess		: "Copied to clipboard successfully!"
+ Torrents			: "Показано"
 };

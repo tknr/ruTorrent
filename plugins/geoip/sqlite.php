@@ -2,7 +2,7 @@
 
 function sqlite_exists()
 {
-	return( (PHP_VERSION_ID < 50400) ? function_exists("sqlite_open") : class_exists("SQLite3", false) );
+	return( (PHP_VERSION_ID < 50400) ? function_exists("sqlite_open") : class_exists("SQLite3") );
 }
 
 function sqlite_open1($filename, $mode = 0666, &$error_msg)

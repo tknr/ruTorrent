@@ -90,7 +90,7 @@ plugin.loadRules = function( rle )
 	}
 	plugin.correctCSS();
 	theDialogManager.show("dlgEditRatioRules");
-	$("#_rrn0").trigger('focus');
+	$("#_rrn0").focus();
 	plugin.setButtonsState();
 }
 
@@ -113,7 +113,7 @@ plugin.setButtonsState = function()
 	}
 	else
 		$('#ratDelRule,#ratUpRule,#ratDownRule').addClass('disabled');
-	$('#ratio_reason').trigger('change');
+	$('#ratio_reason').change();
 }
 
 theWebUI.upRatioRule = function()
@@ -173,7 +173,7 @@ theWebUI.addNewRatioRule = function()
 	$("#_rrn"+i).val( f.name );
 	if(f.enabled)
 		$("#_rre"+i).prop("checked",true);
-	$("#_rrn"+i).trigger('focus');
+	$("#_rrn"+i).focus();
 	plugin.setButtonsState();
 }
 
@@ -194,7 +194,7 @@ theWebUI.deleteCurrentRatioRule = function()
 			}
 			if(no>=plugin.rules.length)
 				no = no - 1;
-			$("#_rrn"+no).trigger('focus');
+			$("#_rrn"+no).focus();	
 		}
 		else
 		{
@@ -341,9 +341,12 @@ plugin.onLangLoaded = function()
 			"<input type='button' class='OK Button' value='"+theUILang.ok+"' onclick='theDialogManager.hide(\"dlgEditRatioRules\");theWebUI.setRatioRules();return(false);'/>"+
 			"<input type='button' class='Cancel Button' value='"+theUILang.Cancel+"'/>"+
 		"</div>");
-  	$('#ratio_reason').on('change', function() 
+  	$('#ratio_reason').change( function() 
   	{ 
-		$('#ratio_pattern').css("visibility", iv($(this).val())>1 ? "hidden" : "visible");
+		if(iv($(this).val())>1)
+			$('#ratio_pattern').css("visibility","hidden");
+		else
+			$('#ratio_pattern').css("visibility","visible");
 	});
 };
 

@@ -31,13 +31,13 @@ class rTask
 
 	static public function formatPath( $taskNo )
 	{
-		return( FileUtil::getSettingsPath().'/tasks/'.$taskNo );
+		return( getSettingsPath().'/tasks/'.$taskNo );
 	}
 
 	public function makeDirectory()
 	{
 		$dir = self::formatPath($this->id);
-		FileUtil::makeDirectory($dir);
+		makeDirectory($dir);		
 		return($dir);
 	}
 
@@ -92,9 +92,9 @@ class rTask
 					}
 				}
 				fputs($sh,'echo $last > "${dir}"/status'."\n");
-				fputs($sh,Utility::getPHP().' '.escapeshellarg(dirname(__FILE__).'/notify.php').' '.
+				fputs($sh,getPHP().' '.escapeshellarg(dirname(__FILE__).'/notify.php').' '.
 					'$last "${dir}" '.
-					escapeshellarg(User::getUser()).' '.
+					escapeshellarg(getUser()).' '.
 					'> /dev/null 2>> /dev/null &'."\n");
 				fclose($sh);
 				@chmod($dir."/start.sh",0755);
@@ -122,7 +122,7 @@ class rTask
 
 	static public function clean( $dir )
 	{
-		@FileUtil::deleteDirectory( $dir );
+		@deleteDirectory( $dir );
 	}
 
 	static protected function removeASCII( $subject )
@@ -229,8 +229,8 @@ class rTask
 		if(is_file($dir.'/pid') && is_readable($dir.'/pid'))
 		{
 			if(is_null($flags))
-				$flags = intval(@file_get_contents($dir.'/flags'));
-			$ret["pid"] = intval(trim(@file_get_contents($dir.'/pid')));
+				$flags = intval(file_get_contents($dir.'/flags'));
+			$ret["pid"] = intval(trim(file_get_contents($dir.'/pid')));
 			if(is_file($dir.'/status') && is_readable($dir.'/status'))
 			{
 				$status = trim(file_get_contents($dir.'/status'));
@@ -298,7 +298,7 @@ class rTask
 				if(is_null($flags))
 					$flags = intval(file_get_contents($dir.'/flags'));
 				$pid = trim(file_get_contents($dir.'/pid'));
-				self::run("kill -9 `".Utility::getExternal("pgrep")." -P ".$pid."` ; kill -9 ".$pid, ($flags & self::FLG_RUN_AS_WEB) | self::FLG_WAIT | self::FLG_RUN_AS_CMD );
+				self::run("kill -9 `".getExternal("pgrep")." -P ".$pid."` ; kill -9 ".$pid, ($flags & self::FLG_RUN_AS_WEB) | self::FLG_WAIT | self::FLG_RUN_AS_CMD );
 				self::notify($dir,"TaskKill");
 			}
 			self::clean($dir);
@@ -314,7 +314,7 @@ class rTaskManager
 	static public function obtain()
 	{
 		$tasks = array();
-		$dir = FileUtil::getSettingsPath().'/tasks/';
+		$dir = getSettingsPath().'/tasks/';
 		if( $handle = @opendir($dir) )
 		{
 			while(false !== ($file = readdir($handle)))
@@ -322,24 +322,10 @@ class rTaskManager
 				if($file != "." && $file != ".." && is_dir($dir.$file))
 				{
 					$tasks[$file] = rTask::check( $file );
-					if( isset($tasks[$file]["params"]["name"]) )
-					{
-						$tasks[$file]["name"] = $tasks[$file]["params"]["name"];
-						unset($tasks[$file]["params"]["name"]);
-					}
-					else
-					{
-						$tasks[$file]["name"] = 'Unknown';
-					}
-					if( isset($tasks[$file]["params"]["requester"]) )
-					{
-						$tasks[$file]["requester"] = $tasks[$file]["params"]["requester"];
-        					unset($tasks[$file]["params"]["requester"]);
-					}
-					else
-					{
-						$tasks[$file]["requester"] = 'Unknown';
-					}
+					$tasks[$file]["name"] = $tasks[$file]["params"]["name"];
+					$tasks[$file]["requester"] = $tasks[$file]["params"]["requester"];
+					unset($tasks[$file]["params"]["name"]);
+					unset($tasks[$file]["params"]["requester"]);
 				}
 			} 
 			closedir($handle);		
@@ -376,7 +362,7 @@ class rTaskManager
 	static public function remove( $list )
 	{
 		$tasks = array();
-		$dir = FileUtil::getSettingsPath().'/tasks/';
+		$dir = getSettingsPath().'/tasks/';
 		if( $handle = @opendir($dir) )
 		{
 			while(false !== ($file = readdir($handle)))

@@ -2,7 +2,7 @@ plugin.loadLang();
 
 if(plugin.canChangeColumns()) {
 	plugin.config = theWebUI.config;
-	theWebUI.config = function() {
+	theWebUI.config = function(data) {
 		// Add the columns to the torrent list
 		theWebUI.tables.trt.columns.push({text: "UL target", width: "100px", id: "upload_target", type: TYPE_NUMBER});
 		theWebUI.tables.trt.columns.push({text: "UL remaining", width: "100px", id: "upload_remaining", type: TYPE_NUMBER});
@@ -37,7 +37,7 @@ if(plugin.canChangeColumns()) {
 			});
 			theWebUI.webui_addTorrents(data);
 		}
-		plugin.config.call(this);
+		plugin.config.call(this,data);
 		plugin.trtRenameColumn();
 	}
 }

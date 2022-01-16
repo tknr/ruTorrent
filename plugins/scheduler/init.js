@@ -3,9 +3,9 @@ plugin.loadLang();
 if(plugin.canChangeMenu() && (theWebUI.systemInfo.rTorrent.iVersion >= 0x805))
 {
 	plugin.config = theWebUI.config;
-	theWebUI.config = function()
+	theWebUI.config = function(data)
 	{
-		plugin.config.call(this);
+		plugin.config.call(this,data);
 		plugin.reqId = theRequestManager.addRequest("trt", theRequestManager.map("d.get_custom=")+"sch_ignore",function(hash,torrent,value)
 		{
 			torrent.sch_ignore = iv(value);

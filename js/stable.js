@@ -193,15 +193,15 @@ dxSTable.prototype.create = function(ele, styles, aName)
 			width(styles[this.colOrder[i]].width).
 			attr("index", i));
 		this.colMove.init(td.get(0), preventSort, null, moveColumn);
-		td.mouseclick(function(e)
+		td.mouseclick( 	function(e) 
 		{ 
 			self.onRightClick(e);
-		}).on('mouseup', function(e) 
+		}).mouseup( function(e) 
 		{ 
 			self.Sort(e);
 		});
 		if(!$.support.touchable)
-			td.on('mousedown', function(e) { self.bindKeys(); });
+			td.mousedown( function(e) { self.bindKeys(); });
 		this.tHeadCols[i] = td.get(0);
 		if(!this.colsdata[i].enabled)
   	                td.hide();
@@ -232,7 +232,7 @@ dxSTable.prototype.create = function(ele, styles, aName)
 	this.dCont.appendChild(this.scp);
 	this.dCont.style.position = "relative";
 	this.init();
-	$(window).on('unload', function() { self.clearRows(); });
+	$(window).unload(function() { self.clearRows(); });
 	this.calcSize().resizeColumn();
 
 	this.colReszObj = $("<div>").addClass("stable-resize-header").get(0);
@@ -372,9 +372,6 @@ dxSTable.prototype.calcSize = function()
 
 dxSTable.prototype.resizeColumn = function() 
 {
-	if (this.tBody == null)
-		return;
-	
 	var _e = this.tBody.getElementsByTagName("colgroup")[0].getElementsByTagName("col");
 	var needCallHandler = false;
 	var w = 0, c;
@@ -556,7 +553,7 @@ dxSTable.ColumnMove.prototype =
 	init : function(o, _1b, _1c, _1d) 
 	{      
 		var self = this;      
-		$(o).on('mousedown', function(e)
+		$(o).mousedown( function(e)
 		{
 			if(self.parent.hotCell >- 1)
 				return;
@@ -789,8 +786,7 @@ dxSTable.prototype.sortSecondary = function(x, y)
       		n = tmp;
 	}
 	var ret = this.colsdata[this.secIndex].type;
-	var order = (ret==0) ? theSort.AlphaNumeric(m, n) : ((ret==1) || (ret==4)) ? theSort.Numeric(m, n) : theSort.Default(m, n);
-	return( order !== 0 ? order : theSort.Default(x.key, y.key) );
+	return( (ret==0) ? theSort.AlphaNumeric(m, n) : ((ret==1) || (ret==4)) ? theSort.Numeric(m, n) : theSort.Default(m, n) );
 }
 
 var theSort = 
@@ -940,7 +936,7 @@ dxSTable.prototype.assignEvents = function()
 			}
 		};
 	if(!$.support.touchable)
-		$(this.dCont).on('mousedown', function(e) { self.bindKeys(); } );
+		$(this.dCont).mousedown( function(e) { self.bindKeys(); } );
 }
 
 dxSTable.prototype.colDrag = function(e) 
@@ -1275,7 +1271,7 @@ dxSTable.prototype.selectRow = function(e, row)
 	return(false);
 }
 
-dxSTable.prototype.addRowById = function(ids, sId, icon, attr, fast = false)
+dxSTable.prototype.addRowById = function(ids, sId, icon, attr)
 {
         var cols = [];
         for(var i=0; i<this.cols; i++)
@@ -1286,10 +1282,10 @@ dxSTable.prototype.addRowById = function(ids, sId, icon, attr, fast = false)
 		if(no>=0)
 			cols[no] = ids[i];
 	}
-	this.addRow(cols, sId, icon, attr, fast);
+	this.addRow(cols, sId, icon, attr);
 }
 
-dxSTable.prototype.addRow = function(cols, sId, icon, attr, fast = false) 
+dxSTable.prototype.addRow = function(cols, sId, icon, attr) 
 {
 	if(cols.length != this.cols) 
 		return;
@@ -1301,28 +1297,16 @@ dxSTable.prototype.addRow = function(cols, sId, icon, attr, fast = false)
 	this.rowdata[sId] = {"data" : cols, "icon" : icon, "attr" : attr, "enabled" : true, fmtdata: this.format(this,cols.slice(0))};
 	this.rowSel[sId] = false;
 	this.rowIDs.push(sId);
-	
-	// When adding hundreds or thousands of rows at once, it's faster to skip a few steps
-	// This is safe as long as we call dxSTable.prototype.refreshRows() when we're done
-	if (!fast)
-	{
-		var maxRows = this.getMaxRows();
-		if(this.viewRows < maxRows)
-			this.tBody.tb.appendChild(this.createRow(cols, sId, icon, attr));
-		this.rows++;
-		this.viewRows++;
-		if(this.viewRows > maxRows) 
-			this.bpad.style.height = ((this.viewRows - maxRows) * TR_HEIGHT) + "px";
-
-		var self = this;
-		if((this.sIndex !=- 1) && !this.noSort)
-			this.sortTimeout = window.setTimeout(function() { self.Sort(); }, 200);
-	}
-	else
-	{
-		this.rows++;
-		this.viewRows++;
-	}
+	var maxRows = this.getMaxRows();
+	if(this.viewRows < maxRows) 
+		this.tBody.tb.appendChild(this.createRow(cols, sId, icon, attr));
+	this.rows++;
+	this.viewRows++;
+	if(this.viewRows > maxRows) 
+		this.bpad.style.height = ((this.viewRows - maxRows) * TR_HEIGHT) + "px";
+	var self = this;
+	if((this.sIndex !=- 1) && !this.noSort)
+		this.sortTimeout = window.setTimeout(function() { self.Sort(); }, 200);
 }
 
 dxSTable.prototype.createRow = function(cols, sId, icon, attr) 
@@ -1336,10 +1320,10 @@ dxSTable.prototype.createRow = function(cols, sId, icon, attr)
 	if(this.colorEvenRows) 
 		tr.addClass( (this.rows & 1) ? "odd" : "even" );
 
-	tr.mouseclick(function(e) { return(self.selectRow(e, this)); });
+	tr.mouseclick( function(e) { return(self.selectRow(e, this)); });
 
 	if($type(this.ondblclick) == "function") 
-		tr.on('dblclick', function(e) { return(self.ondblclick(this)); } );
+		tr.dblclick( function(e) { return(self.ondblclick(this)); });
 
 	for(var k in attr) 
 		tr.attr(k, attr[k]);
@@ -1796,9 +1780,6 @@ dxSTable.prototype.getFirstSelected = function()
 
 dxSTable.prototype.scrollTo = function(value) 
 {
-	if (this.dBody == null)
-		return null;
-	
 	var old = this.dBody.scrollTop;
 	this.dBody.scrollTop = value;
 	return(old);

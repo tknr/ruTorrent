@@ -1,7 +1,7 @@
 plugin.config = theWebUI.config;
-theWebUI.config = function()
+theWebUI.config = function(data)
 {
-	plugin.config.call(this);
+	plugin.config.call(this,data);
 	plugin.reqId1 = theRequestManager.addRequest("trt", 
 		theRequestManager.map('cat=')+
 		'"$'+theRequestManager.map("t.multicall=")+

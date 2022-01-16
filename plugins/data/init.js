@@ -1,9 +1,9 @@
 plugin.loadLang();
 
 plugin.config = theWebUI.config;
-theWebUI.config = function()
+theWebUI.config = function(data)
 {
-	plugin.config.call(this);
+	plugin.config.call(this,data);
 	var oldDblClick = this.getTable("fls").ondblclick;
 	this.getTable("fls").ondblclick = function(obj) 
 	{
@@ -74,7 +74,7 @@ if(plugin.canChangeMenu())
 
 plugin.onLangLoaded = function()
 {
-	$(document.body).append($("<iframe name='datafrm'/>").css({visibility: "hidden"}).attr( { name: "datafrm", id: "datafrm" } ).width(0).height(0).on('load', function()
+	$(document.body).append($("<iframe name='datafrm'/>").css({visibility: "hidden"}).attr( { name: "datafrm", id: "datafrm" } ).width(0).height(0).load(function()
 	{
 	        $("#datahash").val('');
 	        $("#datano").val('');

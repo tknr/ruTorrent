@@ -4,13 +4,13 @@ if( count( $argv ) > 1 )
 	$_SERVER['REMOTE_USER'] = $argv[1];
 
 require_once( dirname(__FILE__)."/../../php/util.php" );
-eval(FileUtil::getPluginConf('erasedata'));
+eval(getPluginConf('erasedata'));
 
 function eLog( $str )
 {
 	global $erasedebug_enabled;
 	if($erasedebug_enabled)
-		FileUtil::toLog( "erasedata: ".$str );
+		toLog( "erasedata: ".$str );
 }
 
 function sortByLevel( $a, $b )
@@ -84,8 +84,7 @@ function parseOneItem($item)
 
 define('MAX_DURATION_OF_CHECK',3600);
 
-$listPath = FileUtil::getSettingsPath()."/erasedata";
-@FileUtil::makeDirectory($listPath);
+$listPath = getSettingsPath()."/erasedata";
 $lock = $listPath.'/scheduler.lock';
 if(!is_file($lock) || (time()-filemtime($lock)>MAX_DURATION_OF_CHECK))
 {

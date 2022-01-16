@@ -1,6 +1,6 @@
 <?php
 
-eval( FileUtil::getPluginConf( 'filedrop' ) );
+eval( getPluginConf( 'filedrop' ) );
 
 $jResult.=("plugin.maxfiles = ".$maxfiles.";\n".
 	"plugin.maxfilesize = ".$maxfilesize.";\n".

@@ -26,7 +26,5 @@
  theUILang.torrentKilled		= "Folyamat leállt.";
  theUILang.recentTrackers		= "Recent trackers";
  theUILang.source			= "Source";
- theUILang.HybridTorrent		= "Hybrid torrent";
- theUILang.deleteFromRecentTrackers	= "> Delete";
 
 thePlugins.get("create").langLoaded();

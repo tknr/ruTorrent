@@ -2,7 +2,7 @@
 require_once( '../../php/rtorrent.php' );
 
 if(isset($_REQUEST['result']))
-	CachedEcho::send('noty(theUILang.cantFindTorrent,"error");',"text/html");
+	cachedEcho('noty(theUILang.cantFindTorrent,"error");',"text/html");
 if(isset($_POST['hash']))
 {
 	$query = urldecode($_POST['hash']);
@@ -16,7 +16,7 @@ if(isset($_POST['hash']))
 	else
 	{
 		if(!class_exists('ZipArchive'))
-			CachedEcho::send('noty("PHP module \'zip\' is not installed.","error");',"text/html");
+			cachedEcho('noty("PHP module \'zip\' is not installed.","error");',"text/html");
 		foreach($hashes as $hash)
 		{
 			$req = new rXMLRPCRequest( array(
@@ -45,7 +45,7 @@ if(isset($_POST['hash']))
 			set_time_limit(0);
 
 			$fn = 1;
-			$zippath = FileUtil::getTempFilename('source','zip');
+			$zippath = getTempFilename('source','zip');
 
 			$zip = new ZipArchive;
 			$zip->open($zippath, ZipArchive::CREATE);
@@ -58,7 +58,7 @@ if(isset($_POST['hash']))
 			}
 			$zip->close();
 
-			if(SendFile::send($zippath, "application/zip", null, false))
+			if(sendFile($zippath, "application/zip", null, false))
 				unlink($zippath);
 
 			exit();

@@ -120,7 +120,7 @@ if(plugin.canChangeTabs())
 				$('#'+self.owner.attr('id')+' .legendColorBox').before("<td class='legendCheckBox'><input type='checkbox'></td>");
 				$.each($('#'+self.owner.attr('id')+' .legendCheckBox input'),function(ndx,element)
 				{
-					$(element).on('click', function() 
+					$(element).click( function() 
 					{
 						self.checked[ndx] = !self.checked[ndx];
 						self.draw();
@@ -281,7 +281,7 @@ if(plugin.canChangeTabs())
 if(plugin.canChangeColumns() && plugin.collectStatForTorrents)
 {
 	plugin.config = theWebUI.config;
-	theWebUI.config = function()
+	theWebUI.config = function(data)
 	{
 		this.tables.trt.columns.push({ text: 'Ratio/day', width: '75x', id: "ratioday", type: TYPE_NUMBER});
 		this.tables.trt.columns.push({ text: 'Ratio/week', width: '75px', id: "ratioweek", type: TYPE_NUMBER});
@@ -297,7 +297,7 @@ if(plugin.canChangeColumns() && plugin.collectStatForTorrents)
 		        }
 			return(plugin.trtFormat(table,arr));
 		}
-		plugin.config.call(this);
+		plugin.config.call(this,data);
 		plugin.reqId = theRequestManager.addRequest("trt", null, function(hash,torrent,value)
 		{
 			if($type(theWebUI.ratiosStat[hash]) && torrent.size)
