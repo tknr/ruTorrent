@@ -201,6 +201,23 @@ switch($mode)
 	        	$result = $req->val;
 		break;
 	}
+	case "opn":	/**/
+	{
+		$cmds = array(
+			"network.http.current_open", "network.open_sockets"
+		);
+		if (rTorrentSettings::get()->apiVersion >= 11)
+			$cmds[] = "network.open_files";
+		$req = new rXMLRPCRequest();
+		foreach( $cmds as $cmd )
+			$req->addCommand( new rXMLRPCCommand( $cmd ) );
+		if($req->success(false)) {
+			$result = $req->val;
+			if (count($cmds) < 3)
+				$result[] = -1;
+		}
+		break;
+	}
 	case "prp":	/**/
 	{
 		$cmds = array(
@@ -466,7 +483,7 @@ switch($mode)
 				$pos = strpos($result, "\r\n\r\n");
 				if($pos !== false)
 					$result = substr($result,$pos+4);
-				cachedEcho($result, "text/xml");
+				CachedEcho::send($result, "text/xml");
 			}
 		}
 		break;
@@ -476,7 +493,7 @@ switch($mode)
 if(is_null($result))
 {
 	header("HTTP/1.0 500 Server Error");
-	cachedEcho( (isset($req) && $req->fault) ? "Warning: XMLRPC call is failed." : "Link to XMLRPC failed. May be, rTorrent is down?","text/html");
+	CachedEcho::send( (isset($req) && $req->fault) ? "Warning: XMLRPC call is failed." : "Link to XMLRPC failed. Maybe, rTorrent is down?","text/html");
 }
 else
-	cachedEcho(safe_json_encode($result),"application/json");
+	CachedEcho::send(JSON::safeEncode($result),"application/json");

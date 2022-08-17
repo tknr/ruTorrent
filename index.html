@@ -34,8 +34,8 @@
     		<script type="text/javascript" src="./js/jquery.flot.js"></script>
 		<script type="text/javascript" src="./js/graph.js"></script>
 		<script type="text/javascript" src="./js/plugins.js"></script>
-		<script type="text/javascript" src="./js/webui.js"></script>
 		<script type="text/javascript" src="./js/rtorrent.js"></script>
+		<script type="text/javascript" src="./js/webui.js"></script>
 	</head>
 	<body>
 		<div id="preload"></div>
@@ -96,26 +96,34 @@
 						<div class="catpanel" id="pstate" onclick="theWebUI.togglePanel(this); return(false);"><script type="text/javascript"> document.write(theUILang.pnlState); </script></div>
 						<ul id="pstate_cont" class="catpanel_cont">
 							<li class="-_-_-all-_-_- sel cat">
-								<script type="text/javascript"> document.write(theUILang.All); </script> (<span class="-_-_-all-_-_-c">0</span>)</li>
+								<div class="label-prefix"></div><div class="label-icon"></div><div class="label-text"><script type="text/javascript"> document.write(theUILang.All); </script></div><div class="label-count">0</div><div class="label-size" style="display: none"></div>
+							</li>
 							<li id="-_-_-dls-_-_-" class="cat">
-								<script type="text/javascript"> document.write(theUILang.Downloading); </script> (<span id="-_-_-dls-_-_-c">0</span>)</li>
+								<div class="label-prefix"></div><div class="label-icon"></div><div class="label-text"><script type="text/javascript"> document.write(theUILang.Downloading); </script></div><div class="label-count">0</div><div class="label-size" style="display: none"></div>
+							</li>
 							<li id="-_-_-com-_-_-" class="cat">
-								<script type="text/javascript"> document.write(theUILang.Finished); </script> (<span id="-_-_-com-_-_-c">0</span>)</li>
+								<div class="label-prefix"></div><div class="label-icon"></div><div class="label-text"><script type="text/javascript"> document.write(theUILang.Finished); </script></div><div class="label-count">0</div><div class="label-size" style="display: none"></div>
+							</li>
 							<li id="-_-_-act-_-_-" class="cat">
-								<script type="text/javascript"> document.write(theUILang.Active); </script> (<span id="-_-_-act-_-_-c">0</span>)</li>
+								<div class="label-prefix"></div><div class="label-icon"></div><div class="label-text"><script type="text/javascript"> document.write(theUILang.Active); </script></div><div class="label-count">0</div><div class="label-size" style="display: none"></div>
+							</li>
 							<li id="-_-_-iac-_-_-" class="cat">
-								<script type="text/javascript"> document.write(theUILang.Inactive); </script> (<span id="-_-_-iac-_-_-c">0</span>)</li>
+								<div class="label-prefix"></div><div class="label-icon"></div><div class="label-text"><script type="text/javascript"> document.write(theUILang.Inactive); </script></div><div class="label-count">0</div><div class="label-size" style="display: none"></div>
+							</li>
 							<li id="-_-_-err-_-_-" class="cat">
-								<script type="text/javascript"> document.write(theUILang.Error); </script> (<span id="-_-_-err-_-_-c">0</span>)</li>
+								<div class="label-prefix"></div><div class="label-icon"></div><div class="label-text"><script type="text/javascript"> document.write(theUILang.Error); </script></div><div class="label-count">0</div><div class="label-size" style="display: none"></div>
+							</li>
 						</ul>
 						<div class="catpanel" id="plabel" onclick="theWebUI.togglePanel(this); return(false);"><script type="text/javascript"> document.write(theUILang.Labels); </script></div>
 						<div class="catpanel_cont" id="plabel_cont">
 							<ul id="clabel_cont">
 								<li class="-_-_-all-_-_- sel cat">
-									<script type="text/javascript"> document.write(theUILang.All); </script> (<span class="-_-_-all-_-_-c">0</span>)</li>
+									<div class="label-prefix"></div><div class="label-icon"></div><div class="label-text"><script type="text/javascript"> document.write(theUILang.All); </script></div><div class="label-count">0</div><div class="label-size" style="display: none"></div>
+								</li>
 								<li id="-_-_-nlb-_-_-" class="cat">
-									<script type="text/javascript"> document.write(theUILang.No_label); </script> (<span id="-_-_-nlb-_-_-c">0</span>)</li>
-								</ul>
+									<div class="label-prefix"></div><div class="label-icon"></div><div class="label-text"><script type="text/javascript"> document.write(theUILang.No_label); </script></div><div class="label-count">0</div><div class="label-size" style="display: none"></div>
+								</li>
+							</ul>
 							<ul id="lbll">
 							</ul>
 						</div>
@@ -123,7 +131,8 @@
 						<div class="catpanel_cont" id="flabel_cont">
 							<ul id="lblf">
 								<li class="-_-_-all-_-_- sel cat">
-									<script type="text/javascript"> document.write(theUILang.All); </script> (<span class="-_-_-all-_-_-c">0</span>)</li>
+									<div class="label-prefix"></div><div class="label-icon"></div><div class="label-text"><script type="text/javascript"> document.write(theUILang.All); </script></div><div class="label-count">0</div><div class="label-size" style="display: none"></div>
+								</li>
 							</ul>
 						</div>
 					</div>
@@ -244,6 +253,13 @@
 								</table>
 							</td>
 							<td>
+								<table id="st_fd" class="statuscell" cellpadding="0" cellspacing="0">
+									<tr>
+										<td><div class="sthdr"><script type="text/javascript"> document.write(theUILang.Open_label); </script>:</div></td><td><div class="stval" id="stopen_http_count"></div></td><td><div class="stval" id="stopen_sock_count"></div></td><td><div class="stval" id="stopen_fd_count"></div></td>
+									</tr>
+								</table>
+							</td>
+							<td>
 							        <table id="st_system" class="statuscell" cellpadding="0" cellspacing="0">
 							        	<tr>
 										<td><div class="sthdr">rTorrent:</div></td><td><div class="stval" id="rtorrentv"></div></td>
@@ -254,6 +270,7 @@
 								<table id="st_system" class="statuscell" cellpadding="0" cellspacing="0">
 									<tr>
 										<td><div class="sthdr"><script type="text/javascript"> document.write(theUILang.Torrents); </script>:</div></td><td><div class="stval" id="viewrows"></div></td>
+										<td><div class="stval" id="viewrows_size"></div></td>
 									</tr>
 								</table>
 							</td>
@@ -267,5 +284,7 @@
 				</td>
 			</tr>
 		</table>
+		<div class="graph_tab_grid"></div>
+		<div class="graph_tab_legend"></div>
 	</body>
 </html>

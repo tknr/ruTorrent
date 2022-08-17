@@ -1,15 +1,14 @@
-plugin.loadMainCSS();
 
 theWebUI.trackersLabels = {};
 plugin.injectedStyles = {};
 
 plugin.config = theWebUI.config;
-theWebUI.config = function(data)
+theWebUI.config = function()
 {
 	if(plugin.canChangeColumns())
 	{
 		theWebUI.tables.trt.columns.push({ text: theUILang.Tracker, width: '100px', id: 'tracker', type: TYPE_STRING});
-		plugin.config.call(this,data);
+		plugin.config.call(this);
 		plugin.reqId = theRequestManager.addRequest("trk", null, function(hash,tracker,value)
 		{
 			var domain = theWebUI.getTrackerName( tracker.name );
@@ -123,26 +122,31 @@ theWebUI.trackersLabelContextMenu = function(e)
 	return(false);
 }
 
-plugin.updateLabelsImages = function()
+plugin.updateLabel = theWebUI.updateLabel;
+theWebUI.updateLabel = function(label, ...args)
 {
-	$('#plabel_cont ul li').each( function()
+	plugin.updateLabel.call(this, label, ...args);
+	var icon = $(label).children('.label-icon');
+	var id = icon.parent().attr('id');
+	if (id && icon.parents('#plabel_cont')[0] && !icon.children('img')[0])
 	{
-		var lbl = this.id.substr(5,this.id.length-10);
-		if(!$$("lbl_"+lbl))
-			$(this).prepend( $("<img>").attr("id","lbl_"+lbl).attr("src","plugins/tracklabels/action.php?label="+lbl).addClass("tfavicon") ).css({ padding: "2px 4px" });
-	});
+		var lbl = theWebUI.idToLbl(id);
+		icon.append($("<img>")
+			.attr({ id: 'lbl_'+lbl, src: 'plugins/tracklabels/action.php?label='+lbl}))
+			.css({ background: 'none' });
+	}
 }
 
 plugin.updateLabels = theWebUI.updateLabels;
 theWebUI.updateLabels = function(wasRemoved)
 {
-	plugin.updateLabels.call(theWebUI,wasRemoved);
 	if(plugin.enabled)
 	{
 		if(wasRemoved)
 			theWebUI.rebuildTrackersLabels();
-		plugin.updateLabelsImages();
+		theWebUI.updateAllFilterLabel('torrl', this.settings["webui.show_labelsize"]);
 	}
+	plugin.updateLabels.call(theWebUI,wasRemoved);
 }
 
 theWebUI.rebuildTrackersLabels = function()
@@ -192,40 +196,34 @@ theWebUI.rebuildTrackersLabels = function()
 				}
 			}
 		}
-		if(plugin.canChangeColumns())
-		{
-			table.refreshRows();
-			if(table.sIndex !=- 1)
-				table.Sort();		
-		}
 		var ul = $("#torrl");
 
-		var keys = new Array();
-		for(var lbl in trackersLabels)
-			keys.push(lbl);
-		keys.sort();
+		var lbls = Object.keys(trackersLabels);
+		lbls.sort();
 
-		for(var i=0; i<keys.length; i++) 
+		let needTableFilter = false;
+		for(var lbl of lbls)
 		{
-			var lbl = keys[i];
-			var li = null;
-			var lblSize = this.settings["webui.show_labelsize"] ? ' ; '+theConverter.bytes(trackersSizes[lbl], 2) : "";
-			if(lbl in this.trackersLabels)
+			if(!(lbl in this.trackersLabels))
 			{
-				li = $($$('i'+lbl));
-	                	li.children("span").text(trackersLabels[lbl]+lblSize);
+				ul.append(theWebUI.createSelectableLabelElement('i'+lbl, lbl, theWebUI.trackersLabelContextMenu)
+					.addClass("tracker"));
+				$($$('i'+lbl)).children('.label-icon')
+					.append($("<img>").attr("src","plugins/tracklabels/action.php?tracker="+lbl))
+					.css({ background: 'none' });
 			}
-			else
-			{
-			        li = $('<li>').attr("id",'i'+lbl).
-			        	html(escapeHTML(lbl)+'&nbsp;(<span id="-'+lbl+'_c">'+trackersLabels[lbl]+lblSize+'</span>)').
-			        	mouseclick(theWebUI.trackersLabelContextMenu).addClass("cat tracker").attr("title",lbl+" ("+trackersLabels[lbl]+")").
-					prepend( $("<img>").attr("src","plugins/tracklabels/action.php?tracker="+lbl).addClass("tfavicon") ).css({ padding: "2px 4px" });
-				ul.append(li);
+			theWebUI.updateLabel($$('i'+lbl), trackersLabels[lbl], trackersSizes[lbl], theWebUI.settings["webui.show_labelsize"]);
+			if(plugin.isActualLabel(lbl)) {
+				const actLabel = $($$('i'+lbl));
+				if (!actLabel.hasClass('sel')) {
+					needTableFilter = true;
+					$('#ptrackers_cont').find('.sel').removeClass('sel');
+					$(actLabel).addClass("sel");
+				}
 			}
-			if(plugin.isActualLabel(lbl))
-				li.addClass("sel");
 		}
+		if (needTableFilter)
+			theWebUI.filterTorrentTable();
 		var needSwitch = false;
 		for(var lbl in this.trackersLabels)
 			if(!(lbl in trackersLabels))
@@ -237,6 +235,19 @@ theWebUI.rebuildTrackersLabels = function()
 		this.trackersLabels = trackersLabels;
 		if(needSwitch)
 			theWebUI.resetLabels();
+		
+		setTimeout(plugin.refreshTrackerRows, 0);
+	}
+}
+
+plugin.refreshTrackerRows = async function()
+{
+	if(plugin.canChangeColumns())
+	{
+		var table = theWebUI.getTable('trt');
+		table.refreshRows();
+		if(table.sIndex !=- 1)
+			table.Sort();
 	}
 }
 
@@ -246,11 +257,7 @@ theWebUI.initTrackersLabels = function()
 		append($("<ul></ul>").attr("id","torrl"));
 
 	var ul = $("#torrl");
-	var li = $('<li>').
-		addClass("-_-_-all-_-_- sel cat").
-		html(theUILang.All+' (<span class="-_-_-all-_-_-c">0</span>)</li>').
-		mouseclick(theWebUI.trackersLabelContextMenu);
-	ul.append(li);
+	ul.append(theWebUI.createSelectableLabelElement(undefined, theUILang.All, theWebUI.trackersLabelContextMenu).addClass('-_-_-all-_-_- sel'));
 
 	plugin.markLoaded();
 };

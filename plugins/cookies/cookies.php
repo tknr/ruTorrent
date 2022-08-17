@@ -35,7 +35,7 @@ class rCookies
 					if(strlen($value))
 					{
 						$tmp = explode("|",$value);
-						if(count($tmp>1) && (trim($tmp[1])!=''))
+						if((count($tmp)>1) && (trim($tmp[1])!=''))
 						{
 							$cookies = array();
 							$tmp1 = explode(";",$tmp[1]);
@@ -67,7 +67,7 @@ class rCookies
 			$c = '';
 			foreach($cookies as $name=>$value)
 				$c.=($name."=".$value.";");
-			$ret.="{ host: ".quoteAndDeslashEachItem($host).", cookies: '".addslashes($c)."' },";
+			$ret.="{ host: ".Utility::quoteAndDeslashEachItem($host).", cookies: '".addslashes($c)."' },";
 		}
 		$len = strlen($ret);
 		if($ret[$len-1]==',')

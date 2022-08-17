@@ -22,9 +22,6 @@ if(plugin.canChangeTabs())
 
 		this.ticks = new Array();
 		this.previousPoint = null;
-		var rule = getCSSRule("div.graph_tab");
-		this.gridColor = rule ? rule.style.color : "#545454";
-		this.backgroundColor = rule ? rule.style.borderColor : null;
 
 		this.checked = [ true, true, true, true ];
 		this.datasets = [ this.down, this.up, this.oldDown, this.oldUp ];
@@ -50,6 +47,8 @@ if(plugin.canChangeTabs())
 	rTraficGraph.prototype.draw = function()
 	{
 		var self = this;
+		var gridSel = $('.graph_tab_grid');
+		var legendSel = $('.graph_tab_legend');
 		$(function() 
 		{
 			if(self.owner.height() && self.owner.width())
@@ -66,9 +65,16 @@ if(plugin.canChangeTabs())
 				 	},
 					grid:
 					{
-						backgroundColor: self.backgroundColor,
-						color: self.gridColor,
+						color: gridSel.css('color'),
+						backgroundColor: gridSel.css('background-color'),
+						borderWidth: parseInt(gridSel.css('border-width')),
+						borderColor: gridSel.css('border-color'),
 						hoverable: true
+					},
+					legend : {
+						color: legendSel.css('color'),
+						borderColor: legendSel.css('border-color'),
+						backgroundColor: legendSel.css('background-color'),
 					},
 				  	yaxis: 
 				  	{ 
@@ -78,19 +84,13 @@ if(plugin.canChangeTabs())
 				});
 				function showTooltip(x, y, contents)
 				{
-        				$('<div id="tooltip">' + contents + '</div>').css( {
-						position: 'absolute',
-						display: 'none',
-						top: y + 5,
-						left: x + 5,
-						border: '1px solid #fdd',
-						padding: '2px',
-						'background-color': '#fee',
-						'color': 'black',
-						'font-size': '11px',
-						'font-weight': 'bold',
-						'font-family': 'Tahoma, Arial, Helvetica, sans-serif',
-						opacity: 0.80
+					$('<div>').attr('id', 'tooltip')
+						.addClass('graph_tab_tooltip')
+						.text(contents)
+						.css( {
+							display: 'none',
+							top: y + 5,
+							left: x + 5,
 					}).appendTo("body").fadeIn(200);
 				}
 
@@ -120,7 +120,7 @@ if(plugin.canChangeTabs())
 				$('#'+self.owner.attr('id')+' .legendColorBox').before("<td class='legendCheckBox'><input type='checkbox'></td>");
 				$.each($('#'+self.owner.attr('id')+' .legendCheckBox input'),function(ndx,element)
 				{
-					$(element).click( function() 
+					$(element).on('click', function() 
 					{
 						self.checked[ndx] = !self.checked[ndx];
 						self.draw();
@@ -280,8 +280,9 @@ if(plugin.canChangeTabs())
 
 if(plugin.canChangeColumns() && plugin.collectStatForTorrents)
 {
+	plugin.ratioChanged = false;	
 	plugin.config = theWebUI.config;
-	theWebUI.config = function(data)
+	theWebUI.config = function()
 	{
 		this.tables.trt.columns.push({ text: 'Ratio/day', width: '75x', id: "ratioday", type: TYPE_NUMBER});
 		this.tables.trt.columns.push({ text: 'Ratio/week', width: '75px', id: "ratioweek", type: TYPE_NUMBER});
@@ -297,16 +298,7 @@ if(plugin.canChangeColumns() && plugin.collectStatForTorrents)
 		        }
 			return(plugin.trtFormat(table,arr));
 		}
-		plugin.config.call(this,data);
-		plugin.reqId = theRequestManager.addRequest("trt", null, function(hash,torrent,value)
-		{
-			if($type(theWebUI.ratiosStat[hash]) && torrent.size)
-			{
-				torrent.ratioday = theWebUI.ratiosStat[hash][0]/torrent.size;
-				torrent.ratioweek = theWebUI.ratiosStat[hash][1]/torrent.size;
-				torrent.ratiomonth = theWebUI.ratiosStat[hash][2]/torrent.size;
-			}
-		});
+		plugin.config.call(this);
 		plugin.trtRenameColumn();
 	}
 
@@ -357,7 +349,29 @@ if(plugin.canChangeColumns() && plugin.collectStatForTorrents)
 
 	plugin.updateRatios = function( d )
 	{
+		plugin.ratioChanged = true;
 		window.setTimeout( plugin.startRatios, plugin.updateInterval*60000 );
+	}
+	
+	plugin.addTorrents = theWebUI.addTorrents;
+	theWebUI.addTorrents = function(data)
+	{
+		if(plugin.ratioChanged)
+		{
+			$.each(data.torrents, function(hash,torrent)
+			{
+				if($type(theWebUI.ratiosStat[hash]) && torrent.size)
+				{
+					torrent.ratioday = theWebUI.ratiosStat[hash][0]/torrent.size;
+					torrent.ratioweek = theWebUI.ratiosStat[hash][1]/torrent.size;
+					torrent.ratiomonth = theWebUI.ratiosStat[hash][2]/torrent.size;
+				}
+			});
+			plugin.addTorrents.call(this, data);
+			plugin.ratioChanged = false;
+		}
+		else
+			plugin.addTorrents.call(this, data);
 	}
 
 	rTorrentStub.prototype.getratios = function()

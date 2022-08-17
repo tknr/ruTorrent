@@ -2,7 +2,7 @@
 
 class YggTorrentEngine extends commonEngine
 {
-    const URL = 'https://www2.yggtorrent.se';
+    const URL = 'https://www2.yggtorrent.si';
     const MAX_PAGE = 10;
     const PAGE_SIZE = 50;
 
@@ -88,7 +88,7 @@ class YggTorrentEngine extends commonEngine
         $what = rawurlencode(rawurldecode($what));
 
         // Initial search to retrieve the page count
-        $search = self::URL . '/engine/search/?name=' . $what . $catParameters . '&do=search';
+        $search = self::URL . '/engine/search/?name=' . $what . $catParameters . '&do=search&attempt=1';
         $cli = $this->fetch($search);
         // Check if we have results
         if ($cli == false) {
