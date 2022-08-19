@@ -14,9 +14,9 @@ if(isset($HTTP_RAW_POST_DATA)
 		$pos = strpos($result, "\r\n\r\n");
 		if($pos !== false)
 			$result = substr($result,$pos+4);
-		CachedEcho::send($result, "text/xml");
+		cachedEcho($result, "text/xml");
 	}
 }
 
 header("HTTP/1.0 500 Server Error");
-CachedEcho::send("Link to XMLRPC failed. May be, rTorrent is down?","text/html");
+cachedEcho("Link to XMLRPC failed. May be, rTorrent is down?","text/html");

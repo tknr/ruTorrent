@@ -1,6 +1,6 @@
 <?php
 
-eval(FileUtil::getPluginConf($plugin["name"]));
+eval(getPluginConf($plugin["name"]));
 
 if($useExternal!==false)
 {
@@ -12,10 +12,6 @@ if($useExternal!==false)
 	{
 		if(($useExternal === "transmissioncli") || ($useExternal === "transmissioncreate"))
 			$jResult.="plugin.hidePieceSize = true;";
-
-		if (($useExternal !== "torrenttools"))
-			$jResult.="plugin.hideHybrid = true;";
-
 		$theSettings->registerPlugin($plugin["name"],$pInfo["perms"]);
 	}
 }

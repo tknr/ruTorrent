@@ -7,9 +7,9 @@ class rCache
 
 	public function __construct( $name = '' )
 	{
-		$this->dir = FileUtil::getSettingsPath().$name;
+		$this->dir = getSettingsPath().$name;
 		if(!is_dir($this->dir))
-			FileUtil::makeDirectory($this->dir);
+			makeDirectory($this->dir);
 	}
 	public static function flock( $fp )
 	{

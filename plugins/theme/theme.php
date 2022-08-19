@@ -1,7 +1,7 @@
 <?php
 
 require_once( dirname(__FILE__)."/../../php/cache.php" );
-eval( FileUtil::getPluginConf( 'theme' ) );
+eval( getPluginConf( 'theme' ) );
 
 class rTheme
 {

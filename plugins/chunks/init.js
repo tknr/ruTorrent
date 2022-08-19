@@ -105,14 +105,16 @@ rTorrentStub.prototype.getchunks = function()
 	}
 }
 
-rTorrentStub.prototype.getchunksParseXML = function(xml)
+rTorrentStub.prototype.getchunksResponse = function(xml) 
 {
 	if(plugin.hash!=theWebUI.dID)
-		return({});
-	const values = this.getXMLValues(xml, 2, 1)[0];
-	var ret = { chunks: values[0], size: values[1], tsize: values[2] }
+	        return({});
+	var datas = xml.getElementsByTagName('data');
+	var data = datas[0];
+	var values = data.getElementsByTagName('value');
+	var ret = { chunks: this.getValue(values,1), size: this.getValue(values,3), tsize: this.getValue(values,5) }
 	if(theWebUI.systemInfo.rTorrent.apiVersion>=4)
-		ret.seen = values[3];
+		ret.seen = this.getValue(values,7);
 	return(ret);
 }
 

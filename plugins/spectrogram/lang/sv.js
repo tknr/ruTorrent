@@ -1,7 +1,7 @@
 ﻿/*
  * PLUGIN SPECTROGRAM
  *
- * Swedish language file.
+ * English language file.
  *
  * Author: 
  */

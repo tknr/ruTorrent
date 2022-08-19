@@ -9,11 +9,11 @@ require_once( "../../php/Torrent.php" );
 function rtDbg( $prefix, $str )
 {
 	if( !$str )
-		FileUtil::toLog( "" );
+		toLog( "" );
 	elseif( $prefix && strlen( $prefix ) > 0 )
-		FileUtil::toLog( $prefix.": ".$str );
+		toLog( $prefix.": ".$str );
 	else
-		FileUtil::toLog( $str );
+		toLog( $str );
 }
 
 

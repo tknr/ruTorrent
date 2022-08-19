@@ -41,20 +41,17 @@ function rSpeedGraph()
 rSpeedGraph.prototype.create = function( aOwner )
 {
 	this.owner = aOwner;
-	this.setMaxSeconds(theWebUI.settings['webui.speedgraph.max_seconds']);
+	this.maxSeconds = 600;
 	this.seconds = -1;
 	this.down = { label: theUILang.DL, data: [], color: "#1C8DFF" };
 	this.up = { label: theUILang.UL, data: [], color: "#009900" };
 	this.startSeconds = new Date().getTime()/1000;
+	var rule = getCSSRule("div.graph_tab");
+	this.gridColor = rule ? rule.style.color : "#545454";
+	this.backgroundColor = rule ? rule.style.borderColor : null;
 
 	this.checked = [ true, true ];
 	this.datasets = [ this.up, this.down ];
-}
-
-rSpeedGraph.prototype.setMaxSeconds = function(maxSeconds)
-{
-	this.maxSeconds = Math.max(isNaN(maxSeconds) ? 600 : maxSeconds, 10);
-	this.tickSize = Math.max(Math.round(maxSeconds / 10), 1);
 }
 
 rSpeedGraph.prototype.getData = function()
@@ -82,8 +79,6 @@ rSpeedGraph.prototype.getColors = function()
 var previousSpeedPoint = null;
 rSpeedGraph.prototype.draw = function()
 {
-	var gridSel = $('.graph_tab_grid');
-	var legendSel = $('.graph_tab_legend');
 	var self = this;
 	$(function() 
 	{
@@ -114,22 +109,15 @@ rSpeedGraph.prototype.draw = function()
 				},
 				grid:
 				{
-					color: gridSel.css('color'),
-					backgroundColor: gridSel.css('background-color'),
-					borderWidth: parseInt(gridSel.css('border-width')),
-					borderColor: gridSel.css('border-color'),
+					color: self.gridColor,
+					backgroundColor: self.backgroundColor,
 					hoverable: true
-				},
-				legend : {
-					color: legendSel.css('color'),
-					borderColor: legendSel.css('border-color'),
-					backgroundColor: legendSel.css('background-color'),
 				},
 				xaxis: 
 				{ 
 					min: (self.seconds-self.startSeconds>=self.maxSeconds) ? null : self.startSeconds,
 					max: (self.seconds-self.startSeconds>=self.maxSeconds) ? null : self.maxSeconds+self.startSeconds,
-					tickSize: self.tickSize,
+					tickSize: 60,
 					tickFormatter: xTick
 			 	},
 			  	yaxis: 
@@ -142,13 +130,19 @@ rSpeedGraph.prototype.draw = function()
 
 			function showTooltip(x, y, contents)
 			{
-				$('<div>').attr('id', 'tooltip')
-					.addClass('graph_tab_tooltip')
-					.text(contents)
-					.css( {
-						display: 'none',
-						top: y + 5,
-						left: x + 5,
+        			$('<div id="tooltip">' + contents + '</div>').css( {
+					position: 'absolute',
+					display: 'none',
+					top: y + 5,
+					left: x + 5,
+					border: '1px solid #fdd',
+					padding: '2px',
+					'background-color': '#fee',
+					'color': 'black',
+					'font-size': '11px',
+					'font-weight': 'bold',
+					'font-family': 'Tahoma, Arial, Helvetica, sans-serif',
+					opacity: 0.80
 				}).appendTo("body").fadeIn(200);
 			}
 
@@ -204,16 +198,12 @@ rSpeedGraph.prototype.resize = function( newWidth, newHeight )
 rSpeedGraph.prototype.addData = function( upSpeed, downSpeed )
 {
 	this.seconds = new Date().getTime()/1000;
-	
-	if (this.up && this.down)
+	this.up.data.push([this.seconds,upSpeed]);
+	this.down.data.push([this.seconds,downSpeed]);
+	while((this.down.data[this.down.data.length-1][0]-this.down.data[0][0])>this.maxSeconds)
 	{
-		this.up.data.push([this.seconds,upSpeed]);
-		this.down.data.push([this.seconds,downSpeed]);
-		while((this.down.data[this.down.data.length-1][0]-this.down.data[0][0])>this.maxSeconds)
-		{
-			this.down.data.shift(); 
-			this.up.data.shift();
-		}		
-		this.draw();
-	}
+		this.down.data.shift(); 
+		this.up.data.shift();
+	}		
+	this.draw();
 }

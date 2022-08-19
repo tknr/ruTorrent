@@ -36,7 +36,7 @@ switch($_REQUEST['cmd'])
 				if($parts[0]=="no")
 				{
 					$value = trim(rawurldecode($parts[1]));
-					if(strlen($value))
+					if(strlen($value) && intval($value))
 						$list[] = $value;
 				}
 			}
@@ -45,4 +45,4 @@ switch($_REQUEST['cmd'])
 		break;		
 	}	
 }
-CachedEcho::send(JSON::safeEncode($ret),"application/json");
+cachedEcho(safe_json_encode($ret),"application/json");

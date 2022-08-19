@@ -3,13 +3,13 @@
  *
  * Turkish language file.
  *
- * Author: Müslüm Barış Korkmazer (bkbabinco@gmail.com)
+ * Author: 
  */
 
- theUILang.DataDir		= "Şuraya kaydet";
- theUILang.DataDirMove		= "Veri dosyalarını taşı";
- theUILang.datadirDlgCaption	= "Torrent Veri Dizini";
- theUILang.datadirDirNotFound	= "DataDir Eklentisi: Geçersiz dizin";
- theUILang.datadirSetDirFail	= "DataDir Eklentisi: İşlem başarısız";
+ theUILang.DataDir		= "Save to";
+ theUILang.DataDirMove		= "Move data files";
+ theUILang.datadirDlgCaption	= "Torrent Data Directory";
+ theUILang.datadirDirNotFound	= "DataDir plugin: Invalid directory";
+ theUILang.datadirSetDirFail	= "DataDir plugin: Operation fail";
 
 thePlugins.get("datadir").langLoaded();

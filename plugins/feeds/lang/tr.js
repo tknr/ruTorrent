@@ -3,14 +3,14 @@
  *
  * Turkish language file.
  *
- * Author: Müslüm Barış Korkmazer (bkbabinco@gmail.com)
+ * Author: 
  */
 
- theUILang.feedAll		= "Bütün torrentler";
- theUILang.feedCompleted	= "Tamamlanan torrentler";
- theUILang.feedDownloading	= "İnen torrentleri ";
- theUILang.feedActive		= "Aktif torrentler";
- theUILang.feedInactive		= "Etkin olmayan torrentler";
- theUILang.feedError		= "Hatalı torrentler";
+ theUILang.feedAll		= "All torrents";
+ theUILang.feedCompleted	= "Completed torrents";
+ theUILang.feedDownloading	= "Downloading torrents";
+ theUILang.feedActive		= "Active torrents";
+ theUILang.feedInactive		= "Inactive torrents";
+ theUILang.feedError		= "Error torrents";
 
 thePlugins.get("feeds").langLoaded();

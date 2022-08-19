@@ -3,10 +3,10 @@
  *
  * Turkish language file.
  *
- * Author: Müslüm Barış Korkmazer (bkbabinco@gmail.com)
+ * Author: 
  */
 
- theUILang.exsox		= "Spektrogram";
- theUILang.exSave		= "Kaydet";
+ theUILang.exsox		= "Spectrogram";
+ theUILang.exSave		= "Save";
 
 thePlugins.get("spectrogram").langLoaded();

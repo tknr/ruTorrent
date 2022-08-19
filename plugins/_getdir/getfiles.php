@@ -1,7 +1,7 @@
 <?php
 require_once( '../../php/util.php' );
 require_once( '../../php/settings.php' );
-eval(FileUtil::getPluginConf("_getdir"));
+eval(getPluginConf("_getdir"));
 
 $theSettings = rTorrentSettings::get();
 $dh = false;
@@ -33,7 +33,7 @@ if(isset($_REQUEST['dir']) && strlen($_REQUEST['dir']))
 	if(LFS::is_file($dir) && 
 		(($theSettings->uid<0) || 
 		!$checkUserPermissions ||
-		Permission::doesUserHave($theSettings->uid,$theSettings->gid,$dir,0x0004)))
+		isUserHavePermission($theSettings->uid,$theSettings->gid,$dir,0x0004)))
 	{
 		$curFile = basename($dir);
 		$dir = dirname($dir);
@@ -41,12 +41,12 @@ if(isset($_REQUEST['dir']) && strlen($_REQUEST['dir']))
 	if(is_dir($dir))
 	{
 		$dh = @opendir($dir);
-		$dir = FileUtil::addslash($dir);
+		$dir = addslash($dir);
 		if( $dh && 
 			((strpos($dir,$topDirectory)!==0) ||
 			(($theSettings->uid>=0) && 
 			$checkUserPermissions &&
-			!Permission::doesUserHave($theSettings->uid,$theSettings->gid,$dir,0x0005))))
+			!isUserHavePermission($theSettings->uid,$theSettings->gid,$dir,0x0005))))
 		{
 			closedir($dh);
 			$dh = false;
@@ -56,8 +56,8 @@ if(isset($_REQUEST['dir']) && strlen($_REQUEST['dir']))
 if(!$dh)
 {
 	$curFile = null;
-	$dir = User::isLocalMode() ? $theSettings->directory : $topDirectory;
-	if(strpos(FileUtil::addslash($dir),$topDirectory)!==0)
+	$dir = isLocalMode() ? $theSettings->directory : $topDirectory;
+	if(strpos(addslash($dir),$topDirectory)!==0)
 		$dir = $topDirectory;
 	$dh = @opendir($dir);
 }
@@ -65,21 +65,21 @@ $files = array();
 $dirs = array();
 if($dh)
 {
-	$dir = FileUtil::addslash($dir);
+	$dir = addslash($dir);
 	while(false !== ($file = readdir($dh)))
         {
-	        $path = FileUtil::fullpath($dir . $file);
+	        $path = fullpath($dir . $file);
 		if(($file=="..") && ($dir==$topDirectory))
 			continue;
 		if(is_dir($path) &&
-			(strpos(FileUtil::addslash($path),$topDirectory)===0) &&
-			( $theSettings->uid<0 || !$checkUserPermissions || Permission::doesUserHave($theSettings->uid,$theSettings->gid,$path,0x0005) )
+			(strpos(addslash($path),$topDirectory)===0) &&
+			( $theSettings->uid<0 || !$checkUserPermissions || isUserHavePermission($theSettings->uid,$theSettings->gid,$path,0x0005) )
 			)
-			$dirs['/'.$file] = FileUtil::addslash($path);
+			$dirs['/'.$file] = addslash($path);
 		else
 		{
 			if(LFS::is_file($path)
-				&& ( $theSettings->uid<0 || Permission::doesUserHave($theSettings->uid,$theSettings->gid,$path,0x0004))
+				&& ( $theSettings->uid<0 || isUserHavePermission($theSettings->uid,$theSettings->gid,$path,0x0004))
 				)
 				$files[$file." "] = $path;
 		}

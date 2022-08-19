@@ -146,4 +146,4 @@ if(isset($HTTP_RAW_POST_DATA))
 	}
 }
 
-CachedEcho::send(JSON::safeEncode(array( "errors"=>$errors, "hash"=>$hashes )),"application/json");
+cachedEcho(safe_json_encode(array( "errors"=>$errors, "hash"=>$hashes )),"application/json");

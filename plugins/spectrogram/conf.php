@@ -2,7 +2,7 @@
 
 if(empty($pathToExternals['sox']))	// May be path already defined?
 {
-	$pathToExternals['sox'] = '/home/linuxbrew/.linuxbrew/bin/sox';	// Something like /usr/bin/sox. If empty, will be found in PATH.
+	$pathToExternals['sox'] = '';	// Something like /usr/bin/sox. If empty, will be found in PATH.
 }
 
 $extensions = array

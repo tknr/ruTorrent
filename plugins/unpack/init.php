@@ -1,6 +1,6 @@
 <?php
 
-eval(FileUtil::getPluginConf($plugin["name"]));
+eval(getPluginConf($plugin["name"]));
 require_once( 'unpack.php' );
 
 if($do_diagnostic)

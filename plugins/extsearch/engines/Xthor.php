@@ -93,7 +93,6 @@ class XthorEngine extends commonEngine
 			$cat = $categories['all'];
 		else
 			$cat = $categories[$cat];
-		$added = 0;
 		$what = rawurlencode(rawurldecode($what));
 		for ($pg = 0; $pg < 10; $pg++) {
 			$cli = $this->fetch( $url . '/browse.php?' . $cat . '&searchin=title&incldead=1&sch=' . $what . '&sort=7&type=desc&page=' . $pg );

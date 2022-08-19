@@ -1,6 +1,6 @@
 <?php
 require_once( dirname(__FILE__)."/../../php/util.php" );
-eval( FileUtil::getPluginConf( '_cloudflare' ) );
+eval( getPluginConf( '_cloudflare' ) );
 
 class rCloudflare
 {
@@ -17,16 +17,14 @@ class rCloudflare
 	{
 		return( ($this->client->status == 503 || $this->client->status == 429) &&
 			(stripos( $this->client->get_header("Server"), "cloudflare" ) === 0) &&
-			$this->client->results 
-//			&&
-//			(stripos( $this->client->results, "jschl_vc" ) !== false) &&
-//			(stripos( $this->client->results, "jschl_answer" ) !== false) 
-			);
+			$this->client->results &&
+			(stripos( $this->client->results, "jschl_vc" ) !== false) &&
+			(stripos( $this->client->results, "jschl_answer" ) !== false) );
 	}
 
 	public static function is_module_present()
 	{
-		exec( escapeshellarg(Utility::getExternal('python'))." -c \"import cloudscraper\" > /dev/null 2>&1", $output, $error_code);
+		exec( escapeshellarg(getExternal('python'))." -c \"import cloudscraper\" > /dev/null 2>&1", $output, $error_code);
 		return($error_code === 0);
 	}
 
@@ -52,7 +50,7 @@ class rCloudflare
 			{
 				$recaptcha = ",recaptcha={\"provider\": \"$cloudscraper_recaptcha[provider]\",\"api_key\": \"$cloudscraper_recaptcha[api_key]\",\"username\": \"$cloudscraper_recaptcha[username]\",\"password\": \"$cloudscraper_recaptcha[password]\"},delay=15";
 			}
-			$code = escapeshellarg(Utility::getExternal('python'))." -c ".
+			$code = escapeshellarg(getExternal('python'))." -c ".
 				escapeshellarg("import cloudscraper\nimport json\ntokens, user_agent = cloudscraper.get_tokens({$url}{$proxies}{$recaptcha})\nprint(json.dumps([tokens,user_agent]))");
 			$data = `{$code}`;
 			if($data &&

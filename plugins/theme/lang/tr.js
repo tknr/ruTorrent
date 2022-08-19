@@ -3,10 +3,10 @@
  *
  * Turkish language file.
  *
- * Author: Müslüm Barış Korkmazer (bkbabinco@gmail.com)
+ * Author: 
  */
 
- theUILang.themeStandard	= "Standart";
- theUILang.theme		= "Tema";
+ theUILang.themeStandard	= "Standard";
+ theUILang.theme		= "Theme";
 
 thePlugins.get("theme").langLoaded();

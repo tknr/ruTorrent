@@ -16,12 +16,12 @@ if(isset($_REQUEST['mode']))
 		case "set":
 		{
 			$em->set();
-			CachedEcho::send($em->get(),"application/javascript");
+			cachedEcho($em->get(),"application/javascript");
 			break;
 		}
 		case "info":
 		{
-			CachedEcho::send(JSON::safeEncode($em->getInfo()),"application/json");
+			cachedEcho(safe_json_encode($em->getInfo()),"application/json");
 			break;			
 		}
 	}

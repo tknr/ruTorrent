@@ -73,23 +73,17 @@ class ImmortalSeedEngine extends commonEngine
 			$cat = $categories[$cat];
 		for($pg = 1; $pg<11; $pg++)
 		{
-			$cli = $this->fetch( $url.'/browse.php?do=search&keywords='.$what.'&search_type=t_name'.$cat.'&sort=seeders&order=desc&page='.$pg );
-			  if ($cli == false) {
-	    $item = $this->getNewEntry();
-	    $item["name"] = "Fetch Error";
-	    $ret[""] = $item;
-            return;
-	}
-						$res = preg_match_all('`<td align="center" style="width: 40px; height: 36px;" class="unsortable2">.*'.
-				'<img src=".*" border="0" alt="(?P<cat>.*)" title=".*" width="40" height="36" loading="lazy" />.*'.
+			$cli = $this->fetch( $url.'/browse.php?include_dead_torrents=no&keywords='.$what.'&search_type=t_name'.$cat.'&sort=seeders&order=desc&page='.$pg );
+			if($cli==false || (strpos($cli->results, '<input type="password" name="password" class="inputPassword"')!==false))
+				break;
+			$res = preg_match_all('`<td align="center" style="width: 40px; height: 36px;" class="unsortable2">.*'.
+				'<img src=".*" border="0" alt="(?P<cat>.*)" title=".*" width="40" height="36" />.*'.
 				'<div style="text-align:left; margin-top: 5px">(?P<name>.*)</div>.*'.
-				'<div>.*</span>(?P<date>.*)</div>.*'.
-				'<td .*>.*</td>.*'.
-				'<td .*>.*</td>.*'.
-				'<td .*>(?P<size>.*)</td>.*'.
-				'<td .*>.*<a href=".*id=(?P<id>\d+)" title=".*">.*</td>.*'.
-				'<td .*>(?P<seeds>.*)</td>.*'.
-				'<td .*>(?P<leech>.*)</td>'.
+				'</span>\s*(?P<date>.*)\s*</div>.*'.
+				'<a href=".*id=(?P<id>\d+)&type=ssl">.*'.
+				'<td align="center" class="unsortable2">\s*(?P<size>.*)\s*</td>.*'.
+				'title="Seeders">(?P<seeds>.*)</a>.*'.
+				'title="Leechers">(?P<leech>.*)</a>'.
 				'`siU', $cli->results, $matches);
 			if($res)
 			{
@@ -102,7 +96,7 @@ class ImmortalSeedEngine extends commonEngine
 						$item["cat"] = self::removeTags($matches["cat"][$i]);
 						$item["desc"] = $url."/details.php?id=".$matches["id"][$i];
 						$item["name"] = self::removeTags($matches["name"][$i]);
-						$item["size"] = self::formatSize(trim($matches["size"][$i]));
+						$item["size"] = self::formatSize($matches["size"][$i]);
 						$item["time"] = strtotime(self::removeTags(str_replace("-", "/",$matches["date"][$i])));
 						$item["seeds"] = intval(self::removeTags($matches["seeds"][$i]));
 						$item["peers"] = intval(self::removeTags($matches["leech"][$i]));

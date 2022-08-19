@@ -1,12 +1,12 @@
 <?php
 
 $req = new rXMLRPCRequest( array(
-	$theSettings->getOnFinishedCommand(array("seedingtime".User::getUser(),
+	$theSettings->getOnFinishedCommand(array("seedingtime".getUser(),
 		getCmd('d.set_custom').'=seedingtime,"$'.getCmd('execute_capture').'={date,+%s}"')),
-	$theSettings->getOnInsertCommand(array("addtime".User::getUser(),
+	$theSettings->getOnInsertCommand(array("addtime".getUser(),
 		getCmd('d.set_custom').'=addtime,"$'.getCmd('execute_capture').'={date,+%s}"')),
 
-	$theSettings->getOnHashdoneCommand(array("seedingtimecheck".User::getUser(),
+	$theSettings->getOnHashdoneCommand(array("seedingtimecheck".getUser(),
 		getCmd('branch=').'$'.getCmd('not=').'$'.getCmd('d.get_complete=').',,'.
 		getCmd('d.get_custom').'=seedingtime,,"'.getCmd('d.set_custom').'=seedingtime,$'.getCmd('d.get_custom').'=addtime'.'"')),
 	));

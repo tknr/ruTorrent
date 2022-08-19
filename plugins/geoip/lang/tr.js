@@ -5,12 +5,12 @@
  *
  * Initial Author: art.spb, December 2009.
  *
- * Author: Müslüm Barış Korkmazer (bkbabinco@gmail.com)
+ * Author: 
  */
 
- theUILang.peerComment		= "Yorum ekle";
- theUILang.peerCommentLabel	= "Eş için yeni yorum girin";
- theUILang.commentName		= "Yorum";
+ theUILang.peerComment		= "Add comment";
+ theUILang.peerCommentLabel	= "Enter new comment for peer";
+ theUILang.commentName		= "Comment";
  theUILang.countryName		= "Ülke";
 
  theUILang.country = new Array();

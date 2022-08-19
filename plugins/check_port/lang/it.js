@@ -4,10 +4,9 @@
  * Italian language file.
  *
  * Author: Gianni
- * Author: Marco (marco.romanelli@protonmail.ch)
  */
 
- theUILang.checkWebsiteNotFound = "Plugin 'Check_port': Il plugin non funziona. Configurazione non valida.";
+ theUILang.checkWebsiteNotFound = "Check_port plugin: Plugin will not work. Invalid configuration";
  theUILang.checkPort		= "Controlla stato porta";
  theUILang.portStatus		= [
  				  "Stato della porta sconosciuto",

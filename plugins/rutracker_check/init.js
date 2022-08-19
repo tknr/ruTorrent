@@ -30,7 +30,7 @@ if(plugin.canChangeMenu())
 }
 
 plugin.config = theWebUI.config;
-theWebUI.config = function()
+theWebUI.config = function(data)
 {
 	plugin.reqId1 = theRequestManager.addRequest("trt", theRequestManager.map("d.get_custom=")+"chk-state",function(hash,torrent,value)
 	{
@@ -42,7 +42,7 @@ theWebUI.config = function()
 	{
 		torrent.chktime = value;
 	});
-	plugin.config.call(this);
+	plugin.config.call(this,data);
 }
 
 plugin.isTorrentCommandEnabled = theWebUI.isTorrentCommandEnabled;

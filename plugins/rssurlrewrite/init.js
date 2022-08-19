@@ -79,7 +79,7 @@ theWebUI.loadRules = function( rle )
 	}
 	plugin.correctCSS();
 	theDialogManager.show("dlgEditRules");
-	$("#_rn0").trigger('focus');
+	$("#_rn0").focus();
 }
 
 theWebUI.addNewRule = function()
@@ -93,7 +93,7 @@ theWebUI.addNewRule = function()
 	$("#_rn"+i).val( f.name );
 	if(f.enabled)
 		$("#_re"+i).prop("checked",true);
-	$("#_rn"+i).trigger('focus');
+	$("#_rn"+i).focus();
 }
 
 theWebUI.deleteCurrentRule = function()
@@ -113,7 +113,7 @@ theWebUI.deleteCurrentRule = function()
 			}
 			if(no>=this.rules.length)
 				no = no - 1;
-			$("#_rn"+no).trigger('focus');
+			$("#_rn"+no).focus();	
 		}
 		else
 		{

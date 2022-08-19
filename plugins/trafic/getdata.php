@@ -1,6 +1,6 @@
 <?php
 require_once( 'stat.php' );
-eval(FileUtil::getPluginConf('trafic'));
+eval(getPluginConf('trafic'));
 
 $ret = null;
 $storages = array( "global.csv" );
@@ -42,7 +42,7 @@ if(isset($_REQUEST['mode']))
 	{
 		if(!$disableClearButton)
 			foreach( $storages as $storage )
-				@unlink(FileUtil::getSettingsPath().'/trafic/'.$storage);
+				@unlink(getSettingsPath().'/trafic/'.$storage);
 		if($_REQUEST['tracker']!="none")
 			$storages = array( "global.csv" );
 		$mode = 'day';
@@ -70,4 +70,4 @@ if(isset($_REQUEST['mode']))
 	}
 }
 
-CachedEcho::send(JSON::safeEncode($ret),"application/json");
+cachedEcho(safe_json_encode($ret),"application/json");

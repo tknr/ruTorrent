@@ -3,14 +3,14 @@
  *
  * Turkish language file.
  *
- * Author: Müslüm Barış Korkmazer (bkbabinco@gmail.com)
+ * Author: 
  */
 
- theUILang.throttles		= "Kanallar";
- theUILang.throttle		= "Kanal";
- theUILang.mnuThrottle		= "Kanal Ayarla";
- theUILang.mnuUnlimited		= "Kanal Yok";
- theUILang.channelName		= "İsim";
- theUILang.channelDefault	= "Varsayılan kanal";
+ theUILang.throttles		= "Channels";
+ theUILang.throttle		= "Channel";
+ theUILang.mnuThrottle		= "Set Channel";
+ theUILang.mnuUnlimited		= "No Channel";
+ theUILang.channelName		= "Name";
+ theUILang.channelDefault	= "Default channel";
 
 thePlugins.get("throttle").langLoaded();

@@ -365,9 +365,9 @@ if($val===null)
 	$errorsReported = true;
 }
 if($dataType=="text/xml")
-	CachedEcho::send('<?xml version="1.0" encoding="UTF-8"?><data><![CDATA['.$val.']]></data>',"text/xml",true,false);
+	cachedEcho('<?xml version="1.0" encoding="UTF-8"?><data><![CDATA['.$val.']]></data>',"text/xml",true,false);
 else
-	CachedEcho::send(JSON::safeEncode($val),$dataType,true,false);
+	cachedEcho(safe_json_encode($val),$dataType,true,false);
 
 ob_flush();
 flush();

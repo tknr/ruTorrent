@@ -3,4 +3,4 @@ require_once( 'theme.php' );
 
 $theme = new rTheme();
 $theme->set();
-CachedEcho::send($theme->get(),"application/javascript");
+cachedEcho($theme->get(),"application/javascript");

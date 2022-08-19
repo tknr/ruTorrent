@@ -3,10 +3,10 @@
  *
  * Turkish language file.
  *
- * Author: Müslüm Barış Korkmazer (bkbabinco@gmail.com)
+ * Author: 
  */
 
- theUILang.seedingTime		= "Bitmiş";
- theUILang.addTime		= "Eklnemiş";
+ theUILang.seedingTime		= "Finished";
+ theUILang.addTime		= "Added";
 
 thePlugins.get("seedingtime").langLoaded();

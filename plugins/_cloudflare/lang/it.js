@@ -2,9 +2,9 @@
  *
  * Italian language file.
  *
- * Author: Marco (marco.romanelli@protonmail.ch)
+ * Author: 
  */
 
- theUILang.cannotLoadCloudscraper		= "plugin '_cloudflare': il modulo 'cloudscraper' per Python non può essere caricato";
+ theUILang.cannotLoadCloudscraper		= "_cloudflare plugin: cloudscraper module can't be loaded in Python";
 
 thePlugins.get("_cloudflare").langLoaded();

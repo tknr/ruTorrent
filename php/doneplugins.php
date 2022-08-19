@@ -68,4 +68,4 @@ if(isset($HTTP_RAW_POST_DATA))
 		$cache->set($userPermissions);
 }
 
-CachedEcho::send($jResult,"application/javascript");
+cachedEcho($jResult,"application/javascript");

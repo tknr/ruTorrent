@@ -3,19 +3,19 @@
  *
  * Turkish language file.
  *
- * Author: Müslüm Barış Korkmazer (bkbabinco@gmail.com)
+ * Author: 
  */
 
- var s_PluginFail			= "Eklenti çalışmayacak.";
+ var s_PluginFail			= "Plugin will not work.";
 
  theUILang.xmpp				= "XMPP";
  theUILang.xmppJabberJID		= "JID:";
  theUILang.xmppJabberFor		= "Recipient:";
- theUILang.xmppMessage			= "Mesaj:";
- theUILang.xmppJabberPasswd		= "Şifre:";
- theUILang.xmppAdvancedSettings		= "Gelişmiş:";
+ theUILang.xmppMessage			= "Message:";
+ theUILang.xmppJabberPasswd		= "Password:";
+ theUILang.xmppAdvancedSettings		= "Advanced:";
  theUILang.xmppJabberHost		= "Host";
  theUILang.xmppJabberPort		= "Port";
- theUILang.xmppUseEncryption		= "Şifreleme kullan";
+ theUILang.xmppUseEncryption		= "Use encryption";
 
 thePlugins.get("xmpp").langLoaded();

@@ -18,7 +18,7 @@ class rStat
 
 	public function __construct( $prefix )
 	{
-		$this->fname = FileUtil::getSettingsPath().'/trafic/'.$prefix;
+		$this->fname = getSettingsPath().'/trafic/'.$prefix;
 		if($file=@fopen($this->fname,"r"))
 		{
 			$hourUp = fgetcsv($file);
@@ -46,7 +46,7 @@ class rStat
 	public function flush()
 	{
 		global $profileMask;
-		$randName = FileUtil::getTempFilename('trafic');
+		$randName = getTempFilename('trafic');
 		if($file=@fopen($randName,"w"))
 		{
 			if( (fputcsv($file,$this->hourUp)!==false) &&
@@ -117,7 +117,7 @@ class rStat
 	static protected function getTrackers()
 	{
 		$files = array();
-		$dir = FileUtil::getSettingsPath().'/trafic/trackers';
+		$dir = getSettingsPath().'/trafic/trackers';
 		$dh = @opendir($dir);
 		if($dh)
 		{

@@ -20,7 +20,7 @@
 	@define('LOG_RPC_FAULTS', true, true);
 
 	// for php
-	@define('PHP_USE_GZIP', false, false);
+	@define('PHP_USE_GZIP', false, true);
 	@define('PHP_GZIP_LEVEL', 2, true);
 
 	$schedule_rand = 10;			// rand for schedulers start, +0..X seconds
@@ -52,6 +52,10 @@
 		"gzip"	=> '/usr/bin/gzip',			// Something like /usr/bin/gzip. If empty, will be found in PATH.
 		"id"	=> '/usr/bin/id',			// Something like /usr/bin/id. If empty, will be found in PATH.
 		"stat"	=> '/usr/bin/stat',			// Something like /usr/bin/stat. If empty, will be found in PATH.
+		"python" => "/usr/bin/python",
+		"pgrep" => "/usr/bin/pgrep",
+		"ffmpeg" => "/home/linuxbrew/.linuxbrew/bin/ffmpeg",
+		"sox" => "/home/linuxbrew/.linuxbrew/bin/sox",
 	);
 
 	$localhosts = array( 			// list of local interfaces
@@ -59,7 +63,7 @@
 		"localhost",
 	);
 
-	$profilePath = '../../share';		// Path to user profiles
+	$profilePath = '../share';		// Path to user profiles
 	$profileMask = 0777;			// Mask for files and directory creation in user profiles.
 						// Both Webserver and rtorrent users must have read-write access to it.
 						// For example, if Webserver and rtorrent users are in the same group then the value may be 0770.
@@ -69,7 +73,3 @@
 	$canUseXSendFile = false;		// If true then use X-Sendfile feature if it exist
 
 	$locale = "UTF8";
-
-	$enableCSRFCheck = false;		// If true then Origin and Referer will be checked
-	$enabledOrigins = array();		// List of enabled domains for CSRF check (only hostnames, without protocols, port etc.).
-						// If empty, then will retrieve domain from HTTP_HOST / HTTP_X_FORWARDED_HOST
