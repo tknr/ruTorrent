@@ -43,6 +43,7 @@ plugins/hashblock/
 plugins/ratiocolor/
 plugins/repeat/
 plugins/set_title/
+plugins/mobile/
 php/commands.lst
 .idea/*
 *.iml

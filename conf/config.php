@@ -52,7 +52,7 @@
 		"gzip"	=> '/usr/bin/gzip',			// Something like /usr/bin/gzip. If empty, will be found in PATH.
 		"id"	=> '/usr/bin/id',			// Something like /usr/bin/id. If empty, will be found in PATH.
 		"stat"	=> '/usr/bin/stat',			// Something like /usr/bin/stat. If empty, will be found in PATH.
-		"python" => "/usr/bin/python",
+		"python" => "/home/linuxbrew/.linuxbrew/bin/python3.9",
 		"pgrep" => "/usr/bin/pgrep",
 		"ffmpeg" => "/home/linuxbrew/.linuxbrew/bin/ffmpeg",
 		"sox" => "/home/linuxbrew/.linuxbrew/bin/sox",
