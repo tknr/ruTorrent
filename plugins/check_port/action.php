@@ -1,7 +1,7 @@
 <?php
 require_once( dirname(__FILE__)."/../../php/settings.php" );
 require_once( dirname(__FILE__)."/../../php/Snoopy.class.inc" );
-eval( getPluginConf( 'check_port' ) );
+eval( FileUtil::getPluginConf( 'check_port' ) );
 
 $port = rTorrentSettings::get()->port;
 $ip_glob = rTorrentSettings::get()->ip;
@@ -9,7 +9,7 @@ $ip_glob = rTorrentSettings::get()->ip;
 if($useWebsite=="yougetsignal")
 {
 	$url = "https://www.yougetsignal.com/tools/open-ports/";
-	$ipMatch = '/<p style="font-size: 1.4em;">(?P<ip>.*)</';
+	$ipMatch = '/<p style="font-size: 1.4em;">(?P<ip>[^<]+)/';
 	$checker = "https://ports.yougetsignal.com/check-port.php";
 	$closed = "closed";
 	$open = "open";
@@ -18,18 +18,26 @@ else
 if($useWebsite=="portchecker")
 {
 	$url = "https://portchecker.co/";
-	$ipMatch = '/data-ip="(?P<ip>.*)"/';
-	$checker = $url;
+	$ipMatch = '/data-ip="(?P<ip>[^"]+)/';
+	$checker = "https://portchecker.co/check-it";
 	$closed = ">closed<";
 	$open = ">open<";
 }
 else
-	cachedEcho('{ "port": '.$port.', "status": 0 }',"application/json");
+{
+	if(!empty($ip_glob) && $ip_glob != '0.0.0.0')
+		CachedEcho::send('{ "ip": "'.$ip_glob.'", "port": '.$port.', "status": 0 }',"application/json");
+	else
+		CachedEcho::send('{ "ip": "?.?.?.?", "port": '.$port.', "status": 0 }',"application/json");
+}
 
 function get_ip($url,$ipMatch)
 {
+	global $useIpv4;
+
 	$client = new Snoopy();
 	$client->proxy_host = "";
+	$client->useIpv4 = $useIpv4;
 
 	@$client->fetch($url);
 
@@ -43,19 +51,25 @@ function get_ip($url,$ipMatch)
 function check_port($ip,$port,$checker,$closed,$open)
 {
 	global $useWebsite;
+	global $useIpv4;
+
+	$client = new Snoopy();
+	$client->proxy_host = "";
+	$client->useIpv4 = $useIpv4;
 
 	if($useWebsite=="yougetsignal")
 		$parse = "remoteAddress=".$ip."&portNumber=".$port;
 	if($useWebsite=="portchecker")
+	{
+		@$client->fetch($checker);
+		$client->setcookies();
 		$parse = "target_ip=".$ip."&port=".$port;
+		if(preg_match('/name="_csrf" value="(?P<csrf>[^"]+)/', $client->results, $match))
+			$parse .= "&_csrf=".$match["csrf"];
+	}
 
 	$ret = 0;
-
-	$client = new Snoopy();
-	$client->proxy_host = "";
-
 	@$client->fetch($checker, "POST", "application/x-www-form-urlencoded", $parse);
-
 	if($client->status==200)
 	{
 		if(strpos($client->results,$closed)!==false)
@@ -65,7 +79,7 @@ function check_port($ip,$port,$checker,$closed,$open)
 			$ret = 2;
 	}
 
-	cachedEcho('{ "port": '.$port.', "status": '.$ret.' }',"application/json");
+	CachedEcho::send('{ "ip": "'.$ip.'", "port": '.$port.', "status": '.$ret.' }',"application/json");
 }
 
 if(!empty($ip_glob) && $ip_glob != '0.0.0.0')
@@ -83,6 +97,6 @@ else
 		if(isset($_SESSION['ip']))
 			check_port($_SESSION['ip'],$port,$checker,$closed,$open);
 		else
-			cachedEcho('{ "port": '.$port.', "status": 0 }',"application/json");
+			CachedEcho::send('{ "ip": "?.?.?.?", "port": '.$port.', "status": 0 }',"application/json");
 	}
 }

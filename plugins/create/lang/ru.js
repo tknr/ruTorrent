@@ -25,6 +25,8 @@
  theUILang.torrentKill			= "Остановить";
  theUILang.torrentKilled		= "Процесс остановлен.";
  theUILang.recentTrackers		= "Недавние трекеры";
- theUILang.source			= "Источник";
+ theUILang.source			    = "Источник";
+ theUILang.HybridTorrent		= "Hybrid torrent";
+ theUILang.deleteFromRecentTrackers	= "> Delete";
 
 thePlugins.get("create").langLoaded();

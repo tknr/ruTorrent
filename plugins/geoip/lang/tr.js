@@ -5,12 +5,12 @@
  *
  * Initial Author: art.spb, December 2009.
  *
- * Author: 
+ * Author: Müslüm Barış Korkmazer (bkbabinco@gmail.com)
  */
 
- theUILang.peerComment		= "Add comment";
- theUILang.peerCommentLabel	= "Enter new comment for peer";
- theUILang.commentName		= "Comment";
+ theUILang.peerComment		= "Yorum ekle";
+ theUILang.peerCommentLabel	= "Eş için yeni yorum girin";
+ theUILang.commentName		= "Yorum";
  theUILang.countryName		= "Ülke";
 
  theUILang.country = new Array();
@@ -246,7 +246,7 @@
  theUILang.country[ "tz" ] = "Tanzanya";
  theUILang.country[ "ua" ] = "Ukrayna";
  theUILang.country[ "ug" ] = "Uganda";
- theUILang.country[ "um" ] = "Amerika Birleşik Devletleri'nin küçük dış adaları";
+ theUILang.country[ "um" ] = "ABD'nin Küçük Dış Adaları";
  theUILang.country[ "un" ] = "Bilinmeyen";
  theUILang.country[ "us" ] = "Amerika Birleşik Devletleri";
  theUILang.country[ "uy" ] = "Uruguay";

@@ -165,7 +165,7 @@ $.fn.extend(
 						e.shiftKey = false;	// for safari
                                                 return(handler.apply(this,arguments));
 					});
-                                        $(this).mousedown(function(e)
+                                        $(this).on('mousedown', function(e)
 					{
 						if(e.which != 3)
 							return(handler.apply(this,arguments));
@@ -174,7 +174,7 @@ $.fn.extend(
 				else
 				if(browser.isOpera)
 				{
-			        	$(this).mousedown(function(e)
+			        	$(this).on('mousedown', function(e)
 					{
 						if(e.which==3)
 						{
@@ -196,7 +196,7 @@ $.fn.extend(
 						}
 						return(handler.apply(this,arguments));
 					});
-					$(this).mouseup(function(e)
+					$(this).on('mouseup', function(e)
 					{
 						var c = $(this).data("btn");
 						if(c)
@@ -209,7 +209,7 @@ $.fn.extend(
 					});
 				}
 				else
-					$(this).mousedown( handler );
+					$(this).on('mousedown', handler );
 			}
 			else
 			{
@@ -226,7 +226,7 @@ $.fn.extend(
 	enableSysMenu: function()
 	{
 		return(this.on("contextmenu",function(e) { e.stopImmediatePropagation(); }).
-			bind("selectstart",function(e) { e.stopImmediatePropagation(); return(true); }));
+			on("selectstart",function(e) { e.stopImmediatePropagation(); return(true); }));
 	},
 
 	setCursorPosition: function(pos)
@@ -300,7 +300,7 @@ function askYesNo( title, content, funcYesName )
 	$("#yesnoDlg-header").html(title);
 	$("#yesnoDlg-content").html(content);
 	$("#yesnoOK").off('click');
-	$("#yesnoOK").click( function()
+	$("#yesnoOK").on('click', function()
 	{
 		typeof(funcYesName)==="function" ? funcYesName() : eval(funcYesName);
 		theDialogManager.hide("yesnoDlg");
@@ -437,10 +437,9 @@ var theConverter =
 			ret += val + theUILang.time_s;
 		return( ret.substring(0,ret.length-1) );
 	},
-	bytes: function(bt, p)
+	bytes: function(bt, context='other')
 	{
-		p = (p == null) ? 1 : p;
-		var a = new Array(theUILang.bytes, theUILang.KB, theUILang.MB, theUILang.GB, theUILang.TB, theUILang.PB);
+		var a = ['bytes', 'KB', 'MB', 'GB', 'TB', 'PB'];
 		var ndx = 0;
 		if(bt == 0)
 			ndx = 1;
@@ -460,7 +459,7 @@ var theConverter =
             			}
 	         	}
 		}
-		return(this.round(bt, p) + " " + a[ndx]);
+		return(this.round(bt, theWebUI.sizeDecimalPlaces(context, a[ndx].toLowerCase())) + " " + theUILang[a[ndx]]);
 	},
 	speed: function(bt)
 	{
@@ -541,7 +540,7 @@ var theFormatter =
 				case 4:
 				case 5:
 				case 15:
-					arr[i] = theConverter.bytes(arr[i], 2);
+					arr[i] = theConverter.bytes(arr[i], 'table');
 					break;
 				case 6:
 					arr[i] = (arr[i] ==- 1) ? "\u221e" : theConverter.round(arr[i] / 1000, 3);
@@ -711,7 +710,7 @@ var theFormatter =
 	      				arr[i] = theConverter.time(arr[i]);
       					break;
       				case 'last' :
-	      				arr[i] = iv(arr[i]) ? theConverter.time( $.now()/1000 - iv(arr[i]) - theWebUI.deltaTime/1000,true) : '';
+					arr[i] = arr[i] > 0 ? theConverter.time(arr[i], true) : '';
       					break;
 	      		}
 		}
@@ -750,7 +749,7 @@ var theFormatter =
    			{
       				case 'size' :
       				case 'done' :
-      					arr[i] = theConverter.bytes(arr[i], 2);
+      					arr[i] = theConverter.bytes(arr[i], 'table');
       					break;
 	      			case 'percent' :
       					arr[i] = arr[i] + "%";
@@ -761,6 +760,15 @@ var theFormatter =
 	      		}
 	   	}
 		return(arr);
+	},
+	treePrefix: function({hasNext, level})
+	{
+		return hasNext
+			.slice(1)
+			.map((next,l) => next
+				? (l+1 === level ? '├' : '│')
+				: (l+1 === level ? '└' : ' ')
+			).join('');
 	}
 };
 
@@ -776,10 +784,11 @@ var theSearchEngines =
 
 	run: function()
 	{
-	        if(theSearchEngines.current>=0)
-			window.open(theSearchEngines.sites[theSearchEngines.current].url + $("#query").val(), "_blank");
+		const q = $("#query").val();
+		if(theSearchEngines.current >= 0)
+			window.open(theSearchEngines.sites[theSearchEngines.current].url + encodeURIComponent(q), "_blank");
 		else
-			theWebUI.setTeg($("#query").val());
+			theWebUI.setTeg(q);
 	},
 	set: function( no, noSave )
 	{
@@ -850,10 +859,10 @@ var theTabs =
    		for(var n in this.tabs)
       			s += "<li id=\"tab_" + n + "\"><a href=\"javascript://void();\" onmousedown=\"theTabs.show('" + n + "'); return(false);\" onfocus=\"this.blur();\">" + this.tabs[n] + "</a></li>";
 		$("#tabbar").html(s);
-		$("#tab_lcont").append( $("<input type='button'>").attr("id","clear_log").addClass('Button').val(theUILang.ClearButton).hide().click( function()
+		$("#tab_lcont").append( $("<input type='button'>").attr("id","clear_log").addClass('Button').val(theUILang.ClearButton).hide().on('click', function()
 		{
 			$("#lcont").empty();
-		}).focus( function()
+		}).on('focus', function()
 		{
 			this.blur();
 		}));
@@ -971,6 +980,38 @@ function noty(msg,status,noTime)
 		if(iv(theWebUI.settings["webui.log_autoswitch"]) && !$.noty)
 			theTabs.show("lcont");
 	}
+}
+
+function fallbackCopyToClipboard(text)
+{
+	var textarea = document.createElement("textarea");
+	textarea.textContent = text;
+	textarea.style.position = "fixed";
+	document.body.appendChild(textarea);
+	textarea.select();
+	try {
+		var success = document.execCommand("copy");
+		if(success)
+			noty( theUILang.copyToClipboardSuccess, "success" );
+	} catch (err) {
+		prompt(theUILang.copyToClipboardFailed, text);
+	} finally {
+		document.body.removeChild(textarea);
+	}
+}
+
+function copyToClipboard(text)
+{
+	if (!navigator.clipboard)
+	{
+		fallbackCopyToClipboard(text);
+		return;
+	}
+	navigator.clipboard.writeText(text).then(function() {
+		noty( theUILang.copyToClipboardSuccess, "success" );
+	}, function(err) {
+		fallbackCopyToClipboard(text);
+	});
 }
 
 function rDirectory()
@@ -1588,11 +1629,18 @@ function strip_tags(input, allowed)
     	});
 }
 
+if (!window.requestIdleCallback) {
+	// monkey patch requestIdleCallback (for Safari)
+	window.requestIdleCallback = function(func, _) {
+		return setTimeout(() => func({didTimeout: true, timeRemaining: () => 0}), 1);
+	};
+	window.cancelIdleCallback = clearTimeout;
+}
+
 // Caveat: doesn't work with Internet Explorer.
 (function setBrowserTimezoneCookie()
 {
-	try 
-	{
+	try {
 		document.cookie = "browser_timezone="+Intl.DateTimeFormat().resolvedOptions().timeZone
 	} catch(e) {}
 }).apply();

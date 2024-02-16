@@ -25,6 +25,8 @@
  theUILang.torrentKill			= "停止";
  theUILang.torrentKilled		= "进程已停止.";
  theUILang.recentTrackers		= "最近的 trackers";
- theUILang.source			= "源";
+ theUILang.source			    = "源";
+ theUILang.HybridTorrent		= "Hybrid torrent";
+ theUILang.deleteFromRecentTrackers	= "> Delete";
 
 thePlugins.get("create").langLoaded();

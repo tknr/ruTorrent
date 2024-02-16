@@ -4,6 +4,7 @@ require_once( dirname(__FILE__)."/../../php/cache.php" );
 class rLook
 {
 	public $hash = "look.dat";
+	public $modified = false;
 	public $list = array();
 
 	static public function load()
@@ -57,6 +58,6 @@ class rLook
 	}
 	public function get()
 	{
-		return(safe_json_encode($this->list));
+		return(JSON::safeEncode($this->list));
 	}
 }

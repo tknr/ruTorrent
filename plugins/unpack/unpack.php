@@ -3,11 +3,12 @@ require_once( dirname(__FILE__)."/../../php/xmlrpc.php" );
 require_once( dirname(__FILE__)."/../../php/cache.php");
 require_once( dirname(__FILE__)."/../../php/settings.php");
 require_once( dirname(__FILE__).'/../_task/task.php' );
-eval( getPluginConf( 'unpack' ) );
+eval( FileUtil::getPluginConf( 'unpack' ) );
 
 class rUnpack
 {
 	public $hash = "unpack.dat";
+	public $modified = false;
 	public $enabled = 0;
 	public $filter = '/.*/';
 	public $path = "";
@@ -76,7 +77,7 @@ class rUnpack
 		global $unpack_debug_enabled;
 		if( $unpack_debug_enabled ) 
 		{
-			toLog($msg);
+			FileUtil::toLog($msg);
 		}
 	}
 
@@ -172,8 +173,8 @@ class rUnpack
 				return;
 		}
 
-		$pathToUnrar = getExternal("unrar");
-		$pathToUnzip = getExternal("unzip");
+		$pathToUnrar = Utility::getExternal("unrar");
+		$pathToUnzip = Utility::getExternal("unzip");
 		$zipPresent = false;
 		$rarPresent = false;		
 		$outPath = $this->path;
@@ -188,10 +189,10 @@ class rUnpack
 			$postfix = "_dir";
 			if($outPath=='')
 				$outPath = $basename;
-			$basename = addslash($basename);
+			$basename = FileUtil::addslash($basename);
 			
 			$filesToDelete = "";
-			$downloadname = addslash($downloadname);
+			$downloadname = FileUtil::addslash($downloadname);
 			$Directory = new RecursiveDirectoryIterator($basename);
 			$Iterator = new RecursiveIteratorIterator($Directory);
 			$rarRegex = new RegexIterator($Iterator, '/.*\.(rar|r\d\d|\d\d\d)$/si');
@@ -234,14 +235,14 @@ class rUnpack
 		if($mode)
 		{
 			$arh = (($mode == "zip") ? $pathToUnzip : $pathToUnrar);
-			$outPath = addslash($outPath);
+			$outPath = FileUtil::addslash($outPath);
         		if($this->addLabel && ($label!=''))
-        			$outPath.=addslash($label);
+        			$outPath.=FileUtil::addslash($label);
 	        	if($this->addName && ($name!=''))
-				$outPath.=addslash($name);
+				$outPath.=FileUtil::addslash($name);
 			if($unpackToTemp)
 			{
-				$randTempDirectory = addslash( getTempFilename('unpack') );
+				$randTempDirectory = FileUtil::addslash( FileUtil::getTempFilename('unpack') );
 				self::log("Unpack: Unpack to temp enabled. Unpacking to " . $randTempDirectory);
 			}
 			else
@@ -262,7 +263,7 @@ class rUnpack
 
 			$task = new rTask( array
 			( 
-				'arg' => getFileName(delslash($basename)),
+				'arg' => FileUtil::getFileName(FileUtil::delslash($basename)),
 				'requester'=>'unpack',
 				'name'=>'unpack', 
 				'hash'=>$hash, 
@@ -327,12 +328,12 @@ class rUnpack
 					$outPath = dirname($filename);
 
 				$commands = array();
-				$arh = getExternal( ($mode == "zip") ? 'unzip' : 'unrar' );
+				$arh = Utility::getExternal( ($mode == "zip") ? 'unzip' : 'unrar' );
 				$commands[] = escapeshellarg($rootPath.'/plugins/unpack/un'.$mode.'_file.sh')." ".
 					escapeshellarg($arh)." ".
 					escapeshellarg($filename)." ".
-					escapeshellarg(addslash($outPath));
-				$taskArgs['arg'] = getFileName($filename);
+					escapeshellarg(FileUtil::addslash($outPath));
+				$taskArgs['arg'] = FileUtil::getFileName($filename);
 
 				self::log("[Manual] Unpack file [$filename] from torrent [$hash] to [$outPath]");
 
@@ -385,15 +386,15 @@ class rUnpack
 					$mode = ($rarPresent && $zipPresent) ? 'all' : ($rarPresent ? 'rar' : ($zipPresent ? 'zip' : null));
 					if($mode)
 					{
-						$pathToUnrar = getExternal("unrar");
-						$pathToUnzip = getExternal("unzip");
+						$pathToUnrar = Utility::getExternal("unrar");
+						$pathToUnzip = Utility::getExternal("unzip");
 						$arh = (($mode == "zip") ? $pathToUnzip : $pathToUnrar);
 						if(is_dir($basename))
 						{
 							$postfix = "_dir";
 							if($outPath=='')
 								$outPath = $basename;
-							$basename = addslash($basename);
+							$basename = FileUtil::addslash($basename);
 						}
 						else
 						{
@@ -402,18 +403,18 @@ class rUnpack
 								$outPath = dirname($basename);
 		        				$pathToUnzip = "";
 						}
-						$outPath = addslash($outPath);
+						$outPath = FileUtil::addslash($outPath);
 				        	if($this->addLabel && ($label!=''))
-				        		$outPath.=addslash($label);
+				        		$outPath.=FileUtil::addslash($label);
 				        	if($this->addName && ($tname!=''))
-				        		$outPath.=addslash($tname);
+				        		$outPath.=FileUtil::addslash($tname);
 
 				        	$commands[] = escapeshellarg($rootPath.'/plugins/unpack/un'.$mode.$postfix.'.sh')." ".
 							escapeshellarg($arh)." ".
 							escapeshellarg($basename)." ".
 							escapeshellarg($outPath)." ".
 							escapeshellarg($pathToUnzip);
-						$taskArgs['arg'] = getFileName(delslash($basename));
+						$taskArgs['arg'] = FileUtil::getFileName(FileUtil::delslash($basename));
 
 						self::log("[Manual] Unpack files from torrent [$tname] at [$basename] to [$outPath]");
 
@@ -435,12 +436,12 @@ class rUnpack
 		global $rootPath;
 		if($this->enabled)
 		{
-			$cmd =  rTorrentSettings::get()->getOnFinishedCommand( array('unpack'.getUser(), 
-					getCmd('execute').'={'.getPHP().','.$rootPath.'/plugins/unpack/update.php,$'.getCmd('d.get_directory').'=,$'.getCmd('d.get_base_filename').'=,$'.getCmd('d.is_multi_file').
-					'=,$'.getCmd('d.get_custom1').'=,$'.getCmd('d.get_name').'=,$'.getCmd('d.get_hash').'=,$'.getCmd('d.get_custom').'=x-dest,'.getUser().'}'));
+			$cmd =  rTorrentSettings::get()->getOnFinishedCommand( array('unpack'.User::getUser(), 
+					getCmd('execute').'={'.Utility::getPHP().','.$rootPath.'/plugins/unpack/update.php,$'.getCmd('d.get_directory').'=,$'.getCmd('d.get_base_filename').'=,$'.getCmd('d.is_multi_file').
+					'=,$'.getCmd('d.get_custom1').'=,$'.getCmd('d.get_name').'=,$'.getCmd('d.get_hash').'=,$'.getCmd('d.get_custom').'=x-dest,'.User::getUser().'}'));
 		}
 		else
-			$cmd = rTorrentSettings::get()->getOnFinishedCommand(array('unpack'.getUser(), getCmd('cat=')));
+			$cmd = rTorrentSettings::get()->getOnFinishedCommand(array('unpack'.User::getUser(), getCmd('cat=')));
 		$req = new rXMLRPCRequest( $cmd );
 		return($req->success());
 	}

@@ -311,7 +311,7 @@ rTorrentStub.prototype.tasklist = function()
 if(plugin.canChangeTabs())
 {
 	plugin.tasksConfig = theWebUI.config;
-	theWebUI.config = function(data)
+	theWebUI.config = function()
 	{
         	plugin.attachPageToTabs($('<div>').attr("id","tasks").addClass("table_tab stable").get(0),"Tasks","lcont");
 		theWebUI.tables["tasks"] =  
@@ -366,7 +366,7 @@ if(plugin.canChangeTabs())
 				return(arr);
 			}
 		};
-		plugin.tasksConfig.call(theWebUI,data);	
+		plugin.tasksConfig.call(this);
 		if(!plugin.showTabAlways)
 		{
 			$('li#tab_tasks').hide();		
@@ -569,7 +569,7 @@ plugin.onGetTasks = function(d)
 			$('li#tab_tasks').show();
 			$(theWebUI.tables["tasks"].container).show();
 			table.refreshRows();
-			if(table.sIndex !=- 1)
+			if(table.sortId)
 				table.Sort();
 		}
 	}
@@ -612,6 +612,6 @@ plugin.onLangLoaded = function()
 		if(!plugin.cHeight)
 			plugin.cHeight = $('#tskcmderrors').parent().height();
 	});
-	$('#tskBackground').click( plugin.toBackground );
+	$('#tskBackground').on('click', plugin.toBackground );
 	$(".tskconsole").enableSysMenu();
 }

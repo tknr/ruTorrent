@@ -60,7 +60,7 @@ var thePeersCache =
 };
 
 plugin.config = theWebUI.config;
-theWebUI.config = function(data)
+theWebUI.config = function()
 {
 	if(plugin.canChangeColumns())
 	{
@@ -90,7 +90,7 @@ theWebUI.config = function(data)
 		if(plugin.retrieveComments)
 			this.tables.prs.columns.push({text : 'Comment', width : '200px', id: 'comment', type : TYPE_STRING});
 	}
-	plugin.config.call(this,data);
+	plugin.config.call(this);
 	if((plugin.retrieveCountry || plugin.retrieveComments) && plugin.canChangeColumns())
 		plugin.done();
 }
@@ -147,7 +147,7 @@ if(plugin.canChangeColumns())
 			table.oldFilesSortAlphaNumeric = table.sortAlphaNumeric;
 			table.sortAlphaNumeric = function(x, y) 
 			{
-				if(this.getIdByCol(this.sIndex)=="country")
+				if(this.sortId === "country")
 				{
 				        var newX = { key: x.key, v: x.v, e: x.e };
 			        	var newY = { key: y.key, v: y.v, e: y.e };
@@ -178,9 +178,13 @@ if(plugin.canChangeMenu() && plugin.retrieveComments)
 			if(plugin.enabled && plugin.allStuffLoaded)
 			{
 				var el = theContextMenu.get(theUILang.peerAdd);
-				if(el)
+				var selCount = theWebUI.getTable("prs").selCount;
+				if(el && selCount)
+				{
 					theContextMenu.add(el, [theUILang.peerComment+'...',
-						(this.isTorrentCommandEnabled('commentpeer',theWebUI.dID) && (theWebUI.getTable("prs").selCount==1)) ? "theDialogManager.show('cadd')" : null]);
+						(this.isTorrentCommandEnabled('commentpeer',theWebUI.dID) && (selCount==1)) ? 
+							"theDialogManager.show('cadd')" : null]);
+				}
 			}
 			return(true);
 		}
