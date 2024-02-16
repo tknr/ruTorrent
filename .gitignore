@@ -48,3 +48,6 @@ php/commands.lst
 .idea/*
 *.iml
 rutorrent-custom-plugins
+php/share/users/*
+php/share/torrents/*
+php/share/settings/*
