@@ -71,6 +71,7 @@ class rXMLRPCRequest
 {
 	protected $commands = array();
 	protected $content = "";
+	protected $commandOffset = 0;
 	public $i8s = array();
 	public $strings = array();
 	public $val = array();
@@ -92,15 +93,17 @@ class rXMLRPCRequest
 
 	public static function send( $data, $trusted = true )
 	{
-		if(LOG_RPC_CALLS)
+		global $rpcLogCalls;
+		if($rpcLogCalls)
 			FileUtil::toLog($data);
-		global $scgi_host;
-		global $scgi_port;
 		$result = false;
 		$contentlength = strlen($data);
 		if($contentlength>0)
 		{
-			$socket = @fsockopen($scgi_host, $scgi_port, $errno, $errstr, RPC_TIME_OUT);
+			global $rpcTimeOut;
+			global $scgi_host;
+			global $scgi_port;
+			$socket = @fsockopen($scgi_host, $scgi_port, $errno, $errstr, $rpcTimeOut);
 			if($socket) 
 			{
 				$reqheader = "CONTENT_LENGTH\x0".$contentlength."\x0"."SCGI\x0"."1\x0UNTRUSTED_CONNECTION\x0".($trusted ? "0" : "1")."\x0";
@@ -112,7 +115,7 @@ class rXMLRPCRequest
 				fclose($socket);
 			}
 		}
-		if(LOG_RPC_CALLS)
+		if($rpcLogCalls)
 			FileUtil::toLog($result);
 		return($result);
 	}
@@ -219,8 +222,9 @@ class rXMLRPCRequest
 				{
 					if(strstr($answer,"faultCode")!==false)
 					{
-						$this->fault = true;	
-						if(LOG_RPC_FAULTS && $this->important)
+						$this->fault = true;
+						global $rpcLogFaults;
+						if($rpcLogFaults && $this->important)
 						{
 							FileUtil::toLog($this->content);
 							FileUtil::toLog($answer);

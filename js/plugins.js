@@ -23,11 +23,12 @@ function injectScript(fname,initFunc)
 	void (h.appendChild(s));
 }
 
-function injectCSS(fname)
+function injectCSS(fname, onLoadFunc)
 {
 	var newSS=document.createElement('link');
 	newSS.rel='stylesheet';
 	newSS.href=fname;
+	newSS.onload = onLoadFunc;
 	var h = document.getElementsByTagName("head").item(0);
 	void (h.appendChild(newSS));
 }
@@ -169,7 +170,9 @@ rPlugin.prototype.langLoaded = function()
 	try {
 	if(($type(this["onLangLoaded"])=="function") && this.enabled)
 		this.onLangLoaded();
-	} catch(e) {}			// konqueror hack
+	} catch(e) {
+		console.warn(`Plugin "${this.name}" failed to load:`, e);
+	} // konqueror hack
 	this.markLoaded();
 }
 
@@ -198,9 +201,9 @@ rPlugin.prototype.loadLang = function(sendNotify)
 	return(this);
 }
 
-rPlugin.prototype.loadCSS = function(name)
+rPlugin.prototype.loadCSS = function(name, onLoadFunc)
 {
-	injectCSS(this.path+name+".css");
+	injectCSS(this.path+name+".css", onLoadFunc);
 	return(this);
 }
 
@@ -298,6 +301,9 @@ rPlugin.prototype.attachPageToTabs = function(dlg,name,idBefore)
 		$$(idBefore).parentNode.insertBefore(dlg,$$(idBefore));
 		var beforeLbl = $$("tab_"+idBefore);
 		beforeLbl.parentNode.insertBefore(newLbl,beforeLbl);
+		if (theWebUI.activeView === dlg.id) {
+			setTimeout(() => theTabs.show(dlg.id));
+		}
 	}
 	return(this);
 }
@@ -400,12 +406,9 @@ rPlugin.prototype.removePaneFromStatusbar = function(id)
 
 rPlugin.prototype.addPaneToCategory = function(id,name)
 {
-        if(this.canChangeCategory())
-        {
-		$('#CatList').append(
-			$("<div>").addClass("catpanel").attr("id",id).text(name).on('click', function() { theWebUI.togglePanel(this); })).
-				append($("<div>").attr("id",id+"_cont").addClass("catpanel_cont"));
-		theWebUI.showPanel($$(id),!theWebUI.settings["webui.closed_panels"][id]);
+	if(this.canChangeCategory())
+	{
+		theWebUI.addPanel(id, name);
 	}
 	return($("#"+id+"_cont"));
 }

@@ -22,7 +22,9 @@ function makeContent()
 	$("#query").on('keydown', function(e)
 	{
 		if(e.keyCode == 13)
+		{
 			theSearchEngines.run();
+		}
 	});
 
 	new DnD("HDivider",
@@ -145,9 +147,12 @@ function makeContent()
 			.append('<option selected>'+theUILang.No_label+'</option>')
 			.append('<option>'+theUILang.newLabel+'</option>').show();
 		for (var lbl in theWebUI.cLabels)
-			$("#tadd_label_select").append("<option>"+lbl+"</option>");
+		{
+			var lblText = lbl.substring(8);
+			$("#tadd_label_select").append("<option>"+lblText+"</option>");
+		}
 		$("#add_button").prop("disabled",false);
-		$("#tadd_label_select").change();
+		$("#tadd_label_select").trigger('change');
 	});
 
 	var input = $$('url');
@@ -489,6 +494,7 @@ function makeContent()
 									$('<option>').attr({ value }).text(text)
 						))),
 						...[
+							['webui.show_viewlabelsize', theUILang.showViewLabelSize],
 							['webui.show_statelabelsize', theUILang.showStateLabelSize],
 							['webui.show_labelsize', theUILang.showLabelSize],
 							['webui.show_searchlabelsize', theUILang.showSearchLabelSize],
@@ -497,6 +503,7 @@ function makeContent()
 							['webui.show_empty_path_labels', theUILang.showEmptyPathLabel],
 							['webui.show_label_text_overflow', theUILang.showLabelTextOverflow],
 							['webui.show_open_status', theUILang.showOpenStatus],
+							['webui.show_view_panel', theUILang.showViewPanel],
 						].map(([id, label]) =>
 						$('<div>').append(
 							$('<input>').attr({ type: 'checkbox', id, checked: 'true' }),
@@ -654,8 +661,31 @@ function makeContent()
 		"</div>");
 }
 
+function hasThemeHint() {
+	return 'theme-hint' in window.localStorage;
+}
+
+function setThemeHint(dark) {
+	const theme = dark ? 'dark-theme' : 'light-theme';
+	const previousTheme = window.localStorage['theme-hint'];
+	if (theme !== previousTheme) {
+		window.localStorage['theme-hint'] = theme;
+		$(':root').removeClass(previousTheme).addClass(theme);
+	}
+}
+
+if (hasThemeHint()) {
+	$(':root').addClass('pre-theme-load').addClass(window.localStorage['theme-hint']);
+}
+
 function correctContent()
 {
+	if (hasThemeHint() && !thePlugins.isInstalled("theme")) {
+		// Remove theme hint if theme plugin is not used
+		$(':root').removeClass('pre-theme-load').removeClass(window.localStorage['theme-hint']);
+		delete window.localStorage['theme-hint'];
+	}
+
 	var showEnum =
 	{
 		showDownloadsPage:	0x0001,

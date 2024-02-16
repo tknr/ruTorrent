@@ -29,7 +29,7 @@ var theRequestManager =
 			"d.get_up_total=", "d.get_ratio=", "d.get_up_rate=", "d.get_down_rate=", "d.get_chunk_size=",
 			"d.get_custom1=", "d.get_peers_accounted=", "d.get_peers_not_connected=", "d.get_peers_connected=", "d.get_peers_complete=",
 			"d.get_left_bytes=", "d.get_priority=", "d.get_state_changed=", "d.get_skip_total=", "d.get_hashing=",
-			"d.get_chunks_hashed=", "d.get_base_path=", "d.get_creation_date=", "d.get_tracker_focus=", "d.is_active=",
+			"d.get_chunks_hashed=", "d.get_base_path=", "d.get_creation_date=", "d.get_tracker_size=", "d.is_active=",
 			"d.get_message=", "d.get_custom2=", "d.get_free_diskspace=", "d.is_private=", "d.is_multi_file="
 		],
 		handlers: []
@@ -317,7 +317,8 @@ rTorrentStub.prototype.list = function()
 
 rTorrentStub.prototype.setuisettings = function()
 {
-	this.content = "v="+encodeURIComponent(this.vs[0]);
+	// encodeURIComponent is called inside webui.js to avoid injection
+	this.content = "v="+this.vs[0];
 	this.mountPoint = theURLs.SetSettingsURL;
 	this.contentType = "application/x-www-form-urlencoded";
 	this.dataType = "text";
@@ -739,6 +740,12 @@ rTorrentStub.prototype.getXMLValue = function(values,i)
 	return((ret==null) ? "" : ret);
 }
 
+rTorrentStub.prototype.processAction = function(actionSuffix, data)
+{
+	const parseFunc = this.action+actionSuffix;
+	return parseFunc in this ? this[parseFunc](data) : data;
+}
+
 rTorrentStub.prototype.getResponse = function(data) 
 {
 	var ret = "";
@@ -764,17 +771,10 @@ rTorrentStub.prototype.getResponse = function(data)
 						this.faultString.push("XMLRPC Error: "+this.getXMLValue(values,0)+" ["+this.action+"]");
 					}
 		}
-		const parseFunc = this.action+'ParseXML';
-		if(parseFunc in this)
-			responseData = this[parseFunc](responseData);
+		responseData = this.processAction('ParseXML', responseData);
 	}
 	if(!this.isError())
-	{
-		if(this.action+'Response' in this)
-			ret = this[this.action+'Response'](responseData);
-		else
-			ret = responseData;
-	}
+		ret = this.processAction('Response', responseData);
 	return(ret);
 }
 
@@ -1086,7 +1086,7 @@ rTorrentStub.prototype.getalltrackersResponse = function(values)
  * @property {string} status (e.g. "Seeding")
  * @property {string} throttle
  * @property {string} tracker
- * @property {string} tracker_focus
+ * @property {string} tracker_size
  * @property {number} ul
  * @property {number} uploaded
  */
@@ -1201,7 +1201,7 @@ rTorrentStub.prototype.listResponse = function(data)
 		torrent.save_path = (torrent.base_path.substring(pos+1) === torrent.name) ?
 			torrent.base_path.substring(0,pos) : torrent.base_path;
 		torrent.created = values[26];
-		torrent.tracker_focus = values[27];
+		torrent.tracker_size = values[27];
 		try {
 		torrent.comment = values[30];
 		if(torrent.comment.search("VRS24mrker")==0)
@@ -1273,11 +1273,7 @@ function Ajax(URI, isASync, onComplete, onTimeout, onError, reqTimeout, partialD
 		Ajax_UpdateTime(jqXHR);
 		
 		stub.logErrorMessages();
-		var pending = !stub.isError() && stub.commandOffset < stub.commands.length;
-		if(!pending && stub.listRequired)
-			Ajax("?list=1", isASync, onComplete, onTimeout, onError, reqTimeout);
-		else if(!stub.isError())
-	    {
+		if(!stub.isError()) {
 			var responseText = stub.getResponse(data);
 			if (partialData) {
 				if (responseText instanceof Object && !(responseText instanceof XMLDocument)) {
@@ -1288,23 +1284,25 @@ function Ajax(URI, isASync, onComplete, onTimeout, onError, reqTimeout, partialD
 					responseText = partialData;
 				}
 			}
-			if (pending) {
+			// If the ajax call is pending
+			if (stub.commandOffset < stub.commands.length) {
 				stub.makeNextMultiCall();
 				Ajax(stub, isASync, onComplete, onTimeout, onError, reqTimeout, responseText);
 			} else {
-			switch($type(onComplete))
-			{
-				case "function":
-				{
-					onComplete(responseText);
-					break;
-				}				
-				case "array":
-				{
-					onComplete[0].apply(onComplete[1], new Array(responseText, onComplete[2]));
-					break;
+				if(stub.listRequired) {
+					Ajax("?list=1", isASync, onComplete, onTimeout, onError, reqTimeout);
+				} else {	
+					switch($type(onComplete)) {
+						case "function": {
+							onComplete(responseText);
+							break;
+						}				
+						case "array": {
+							onComplete[0].apply(onComplete[1], new Array(responseText, onComplete[2]));
+							break;
+						}	
+					}	
 				}
-			}
 			}
 			responseText = null; // Cleanup memory leak
 		}

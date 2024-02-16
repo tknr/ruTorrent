@@ -131,7 +131,7 @@ if(plugin.canChangeTabs() || plugin.canChangeColumns())
 					{ text: theUILang.Name, 		width: "200px", id: "name",		type: TYPE_STRING },
 		      			{ text: theUILang.Status, 		width: "100px",	id: "status",		type: TYPE_STRING },
 					{ text: 'Time',	 			width: "110px", id: "time",		type: TYPE_NUMBER },
-			   		{ text: theUILang.Size, 		width: "60px",	id: "size", 		type: TYPE_NUMBER },
+			   		{ text: theUILang.Size, 		width: "70px",	id: "size", 		type: TYPE_NUMBER },
 					{ text: theUILang.Downloaded, 		width: "100px",	id: "downloaded",	type: TYPE_NUMBER },
 					{ text: theUILang.Uploaded, 		width: "100px",	id: "uploaded",		type: TYPE_NUMBER },
 					{ text: theUILang.Ratio, 		width: "60px",	id: "ratio",		type: TYPE_NUMBER },
@@ -202,7 +202,7 @@ if(plugin.canChangeTabs() || plugin.canChangeColumns())
 			}
 		}
 
-		plugin.config.call(theWebUI);
+		plugin.config.call(this);
 
 		if(plugin.canChangeColumns())
 		{
@@ -342,7 +342,7 @@ if(plugin.canChangeTabs() || plugin.canChangeColumns())
 		if(updated)
 		{
 			table.refreshRows();
-			if(table.sIndex !=- 1)
+			if(table.sortId)
 				table.Sort();
 		}
 		if((theWebUI.activeView=='history') || (plugin.allStuffLoaded && (plugin.isNotificationsSupported()===notify.PERMISSION_GRANTED)))
@@ -460,7 +460,7 @@ if(plugin.canChangeMenu())
 
 plugin.onLangLoaded = function()
 {
-	injectScript(plugin.path+"/desktop-notify.js",function()
+	injectScript(plugin.path+"desktop-notify.js",function()
 	{
 		plugin.attachPageToOptions( $("<div>").attr("id","st_history").html(
 			"<div class='checkbox'>" +

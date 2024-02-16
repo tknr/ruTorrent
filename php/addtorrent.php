@@ -31,6 +31,9 @@ else
 		if((strlen($dir_edit)>0) && !rTorrentSettings::get()->correctDirectory($dir_edit))
 			$uploaded_files = array( array( 'status' => "FailedDirectory" ) );
 	}
+	$addition = null;
+	if(isset($_REQUEST['addition']) && is_array($_REQUEST['addition']))
+		$addition = $_REQUEST['addition'];
 	if(empty($uploaded_files))
 	{
 		if(isset($_FILES['torrent_file']))
@@ -69,7 +72,7 @@ else
 					$uploaded_url['status'] = (rTorrent::sendMagnet($url,
 						!isset($_REQUEST['torrents_start_stopped']),
 						!isset($_REQUEST['not_add_path']),
-						$dir_edit,$label) ? "Success" : "Failed" );
+						$dir_edit,$label,$addition) ? "Success" : "Failed" );
 				}
 				else
 				{
@@ -96,7 +99,10 @@ else
 			}
 		}
 	}
-	$location = "Location: //".$_SERVER['HTTP_HOST'].dirname($_SERVER['PHP_SELF'])."/addtorrent.php?";
+	if (!empty($_SERVER['PHP_SELF']) && !empty($_SERVER['HTTP_HOST']))
+		$location = "Location: //".$_SERVER['HTTP_HOST'].dirname($_SERVER['PHP_SELF'])."/addtorrent.php?";
+	else
+		$location = "Location: ./addtorrent.php?";
 	if(empty($uploaded_files))
 		$uploaded_files = array( array( 'status' => "Failed" ) );
 	foreach($uploaded_files as &$file)
@@ -118,7 +124,7 @@ else
 				if(rTorrent::sendTorrent($torrent,
 					!isset($_REQUEST['torrents_start_stopped']),
 					!isset($_REQUEST['not_add_path']),
-					$dir_edit,$label,$saveUploadedTorrents,isset($_REQUEST['fast_resume']))===false)
+					$dir_edit,$label,$saveUploadedTorrents,isset($_REQUEST['fast_resume']),true,$addition)===false)
 				{
 					@unlink($file['file']);
 					$file['status'] = "Failed";
