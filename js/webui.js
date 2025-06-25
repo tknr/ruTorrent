@@ -4,7 +4,7 @@
  */
 
 var theWebUI = {
-	version: "5.2.6",
+	version: "5.2.10",
 	tables: {
 		trt: {
 			obj: new dxSTable(),
@@ -2284,8 +2284,6 @@ var theWebUI = {
 		theWebUI.resizeTop(null, h);
 		// center any open dialog
 		theDialogManager.visible.forEach(id => theDialogManager.center(id));
-		// close collapsible top menu
-		bootstrap.Collapse.getInstance("#top-menu")?.hide();
 	},
 
 	update: function() {
