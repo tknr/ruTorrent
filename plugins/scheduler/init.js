@@ -16,7 +16,7 @@ if(plugin.canChangeMenu() && (theWebUI.systemInfo.rTorrent.iVersion >= 0x805))
 	{
 		var h = "";
 		var sr = theWebUI.getTable("trt").rowSel;
-		for(var k in sr) 
+		for(var k in sr)
 			if((sr[k] == true) && (k.length==40))
 			{
 				var state = theWebUI.torrents[k].sch_ignore ? '' : 1;
@@ -54,7 +54,10 @@ if(plugin.canChangeMenu() && (theWebUI.systemInfo.rTorrent.iVersion >= 0x805))
 	{
 		for(var i=0; i<this.hashes.length; i++)
 		{
-			var needRestart = (theWebUI.torrents[this.hashes[i]].status==theUILang.Seeding) || (theWebUI.torrents[this.hashes[i]].status==theUILang.Downloading);
+			// A partial seed is a running torrent too: its selected files are done
+			// but it keeps uploading, so a throttle change has to cycle it.
+			var torrentStatus = theWebUI.torrents[this.hashes[i]].status;
+			var needRestart = (torrentStatus==theUILang.Seeding) || (torrentStatus==theUILang.PartialSeed) || (torrentStatus==theUILang.Downloading);
 			if(needRestart)
 			{
 				var cmd = new rXMLRPCCommand('d.stop');
@@ -116,7 +119,7 @@ if (plugin.canChangeOptions()) {
 	}
 
 	plugin.setSettings = theWebUI.setSettings;
-	theWebUI.setSettings = function() 
+	theWebUI.setSettings = function()
 	{
 		plugin.setSettings.call(this);
 		if(plugin.enabled && this.schedulerWasChanged())
@@ -309,7 +312,7 @@ plugin.onLangLoaded = function() {
 	}
 }
 
-plugin.onRemove = function() 
+plugin.onRemove = function()
 {
 	plugin.removePageFromOptions("st_scheduler");
 	if($type(plugin.reqId))

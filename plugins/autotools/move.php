@@ -19,20 +19,15 @@ function Debug( $str )
 
 
 //------------------------------------------------------------------------------
-function skip_move($files) 
+function skip_move($files)
 {
 	global $at;
 	$filter = $at->skip_move_for_files;
 	if(strlen($filter)>0)
     	{
 		Debug("using filter:".$filter);
-		foreach($files as $file) 
-		{
-			if ( preg_match($filter.'u',$file)==1) 
-			{
-				return true;
-			}
-	    	}
+		if($at->skipsMove($files))
+			return true;
 		Debug("filter: " . $filter . " did not match any files in" . implode(" | ",$files) .". end");
 	}
 	return(false);
@@ -62,7 +57,7 @@ function operationOnTorrentFiles($torrent,&$base_path,$base_file,$is_multy_file,
 		foreach($info['files'] as $key=>$file)
 			$files[] = implode('/',$file['path']);
 	else
-		$files[] = $info['name'];
+		$files[] = $base_file;
 
     if (skip_move($files)){
         $ret = false;
@@ -109,7 +104,7 @@ if( $at->enable_move && (@preg_match($at->automove_filter.'u',$label)==1) )
 		$directory    = rTorrentSettings::get()->directory;
 		if(is_readable($fname) && !empty($directory))
 		{
-			$torrent = new Torrent( $fname );		
+			$torrent = new Torrent( $fname );
 			if( !$torrent->errors() )
 			{
 				$directory = rtAddTailSlash( $directory );
@@ -131,7 +126,13 @@ if( $at->enable_move && (@preg_match($at->automove_filter.'u',$label)==1) )
 					if($at->addLabel && ($label!='') && ($label!=trim($rel_path,'/')))
 		        			$dest_path.=FileUtil::addslash($label);
 			        	if($at->addName && ($name!=''))
-						$dest_path.=FileUtil::addslash($name);					
+						$dest_path.=FileUtil::addslash($name);
+					// Checked here as well as in check.php: the older and the
+					// copy and link hooks run this script alone.
+					$target = $dest_path.($is_multi ? rtAddTailSlash( $base_name ) : '');
+					if(!rTorrent::isInsideTopDirectory($target))
+						Debug( "outside the top directory: ".$target );
+					else
 					if(operationOnTorrentFiles($torrent,$base_path,$base_name,$is_multi,$dest_path,$fileop_type))
 					{
 //						if($fileop_type=="Move")
@@ -146,7 +147,7 @@ if( $at->enable_move && (@preg_match($at->automove_filter.'u',$label)==1) )
 							{
 								Debug( "\".mailto\" file   : ".$mailto_file );
 								$mail_to   = "";
-								$mail_cc   = ""; 
+								$mail_cc   = "";
 								$mail_bcc  = "";
 								$mail_from = "";
 								$subject   = "";
@@ -166,7 +167,7 @@ if( $at->enable_move && (@preg_match($at->automove_filter.'u',$label)==1) )
 								}
 								if( $mail_to == "" )
 									Debug( "mail recepient is not set!" );
-								else 
+								else
 								{
 									Debug( "mail to          : ".$mail_to   );
 									Debug( "mail cc          : ".$mail_cc   );

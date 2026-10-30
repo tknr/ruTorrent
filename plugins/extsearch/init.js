@@ -13,9 +13,9 @@ theSearchEngines.set = function(val, noSave)
 
 theSearchEngines.getEngName = function(eng)
 {
-	return(eng=="all" ? theUILang.All : 
-		eng=="public" ? theUILang.extAllPublic : 
-		eng=="private" ? theUILang.extAllPrivate : 
+	return(eng=="all" ? theUILang.All :
+		eng=="public" ? theUILang.extAllPublic :
+		eng=="private" ? theUILang.extAllPrivate :
 		eng);
 }
 
@@ -41,20 +41,20 @@ theSearchEngines.show = function()
 		theContextMenu.clear();
 		theSearchEngines.checkForIncorrectCurrent(false);
 		if(theSearchEngines.current=='all')
-			theContextMenu.add([CMENU_SEL, theUILang.All, "theSearchEngines.set('all')"]);
+			theContextMenu.add([CMENU_SEL, theUILang.All, () => theSearchEngines.set('all')]);
 		else
-			theContextMenu.add([theUILang.All, "theSearchEngines.set('all')"]);
+			theContextMenu.add([theUILang.All, () => theSearchEngines.set('all')]);
 
 		if(this.isPublicPresent(true) && this.isPublicPresent(false))
 		{
 			if(theSearchEngines.current=='public')
-				theContextMenu.add([CMENU_SEL, theUILang.extAllPublic, "theSearchEngines.set('public')"]);
+				theContextMenu.add([CMENU_SEL, theUILang.extAllPublic, () => theSearchEngines.set('public')]);
 			else
-				theContextMenu.add([theUILang.extAllPublic, "theSearchEngines.set('public')"]);
+				theContextMenu.add([theUILang.extAllPublic, () => theSearchEngines.set('public')]);
 			if(theSearchEngines.current=='private')
-				theContextMenu.add([CMENU_SEL, theUILang.extAllPrivate, "theSearchEngines.set('private')"]);
+				theContextMenu.add([CMENU_SEL, theUILang.extAllPrivate, () => theSearchEngines.set('private')]);
 			else
-				theContextMenu.add([theUILang.extAllPrivate, "theSearchEngines.set('private')"]);
+				theContextMenu.add([theUILang.extAllPrivate, () => theSearchEngines.set('private')]);
 		}
 		theContextMenu.add([CMENU_SEP]);
 
@@ -84,24 +84,24 @@ theSearchEngines.show = function()
 				        if(val.public)
 				        {
 						if(theSearchEngines.current==ndx)
-							public.push([CMENU_SEL, ndx, "theSearchEngines.set('"+ndx+"')"]);
+							public.push([CMENU_SEL, ndx, () => theSearchEngines.set(ndx)]);
 						else
-							public.push([ndx, "theSearchEngines.set('"+ndx+"')"]);
+							public.push([ndx, () => theSearchEngines.set(ndx)]);
 					}
 					else
 				        {
 						if(theSearchEngines.current==ndx)
-							private.push([CMENU_SEL, ndx, "theSearchEngines.set('"+ndx+"')"]);
+							private.push([CMENU_SEL, ndx, () => theSearchEngines.set(ndx)]);
 						else
-							private.push([ndx, "theSearchEngines.set('"+ndx+"')"]);
+							private.push([ndx, () => theSearchEngines.set(ndx)]);
 					}
 				}
 				else
 				{
 					if(theSearchEngines.current==ndx)
-						theContextMenu.add([CMENU_SEL, ndx, "theSearchEngines.set('"+ndx+"')"]);
+						theContextMenu.add([CMENU_SEL, ndx, () => theSearchEngines.set(ndx)]);
 					else
-						theContextMenu.add([ndx, "theSearchEngines.set('"+ndx+"')"]);
+						theContextMenu.add([ndx, () => theSearchEngines.set(ndx)]);
 				}
 			}
 			else
@@ -115,9 +115,9 @@ theSearchEngines.show = function()
 		if(publicPresent || privatePresent)
 			theContextMenu.add([CMENU_SEP]);
 		if(theSearchEngines.current==-1)
-			theContextMenu.add([CMENU_SEL, theUILang.innerSearch, "theSearchEngines.set(-1)"]);
+			theContextMenu.add([CMENU_SEL, theUILang.innerSearch, () => theSearchEngines.set(-1)]);
 		else
-			theContextMenu.add([theUILang.innerSearch, "theSearchEngines.set(-1)"]);
+			theContextMenu.add([theUILang.innerSearch, () => theSearchEngines.set(-1)]);
 		var offs = $("#search").offset();
 		theContextMenu.show(offs.left-5,offs.top+5+$("#search").height());
 	}
@@ -136,14 +136,14 @@ theSearchEngines.checkForIncorrectCurrent = function( refreshCats )
 		}
 		else
 		{
-			if((    (theSearchEngines.current!='all') && 
-				(theSearchEngines.current!='private') && 
-				(theSearchEngines.current!='public') && 
-				(!$type(theSearchEngines.sites[theSearchEngines.current]) || !theSearchEngines.sites[theSearchEngines.current].enabled) 
-			   ) 
+			if((    (theSearchEngines.current!='all') &&
+				(theSearchEngines.current!='private') &&
+				(theSearchEngines.current!='public') &&
+				(!$type(theSearchEngines.sites[theSearchEngines.current]) || !theSearchEngines.sites[theSearchEngines.current].enabled)
+			   )
 				||
 			   (
-				!(this.isPublicPresent(true) && this.isPublicPresent(false)) && 
+				!(this.isPublicPresent(true) && this.isPublicPresent(false)) &&
 				((theSearchEngines.current=='private') || (theSearchEngines.current=='public'))
 			   ))
 			{
@@ -168,7 +168,7 @@ theSearchEngines.run = function()
 		        if(theSearchEngines.current==-1)
 			        theWebUI.setTeg(s);
 			else
-			{		
+			{
 				$("#query").prop("readonly",true);
 				theWebUI.requestWithoutTimeout("?action=extsearch&s="+theSearchEngines.current+"&v="+encodeURIComponent(s)+"&v="+encodeURIComponent($("#exscategory").val()),[theWebUI.setExtSearchTag, theWebUI]);
 			}
@@ -238,11 +238,11 @@ plugin.reloadData = function(id)
 					table.addRow(theWebUI.getTable("trt").getValues(item.hash),
 						id+'$'+i, theWebUI.getTable("trt").getIcon(item.hash));
 				}
-				else		
+				else
 				table.addRowById(
 				{
 					name: item.name,
-					created: item.time-theWebUI.deltaTime/1000,
+					created: item.time,
 					peers: item.peers,
 					seeds: item.seeds,
 					size: item.size,
@@ -264,9 +264,9 @@ catlist.switchLabel = function(panelId, targetId, toggle=false, range=false)
 {
 	const tegList = $("#TegList");
 	const list = $("#List");
-	if (plugin.enabled 
+	if (plugin.enabled
 		&& panelId == 'psearch'
-		&& targetId in plugin.tegs 
+		&& targetId in plugin.tegs
 	) {
 		// no support for multi selection
 		toggle = false;
@@ -279,7 +279,6 @@ catlist.switchLabel = function(panelId, targetId, toggle=false, range=false)
 			theWebUI.getTable("trt").clearSelection();
 			theWebUI.dID = "";
 			theWebUI.clearDetails();
-			tegList.css( { width: list.width(), height: list.height() } );
 			table.resize(list.width(), list.height());
 			tegList.show();
 		}
@@ -320,7 +319,7 @@ theWebUI.setTagsHash = function(d)
 			var item = plugin.tegs[d.teg].data[ d.data[i].ndx ];
 			item.hash = d.data[i].hash;
 			noty( (item.hash ? theUILang.addTorrentSuccess : theUILang.addTorrentFailed) +" ("+item.name+')', (item.hash ? "success" : "error") );
-		} 
+		}
 		theWebUI.getTorrents("list=1");
 	}
 }
@@ -338,7 +337,7 @@ theWebUI.extTegLoad = function()
 theWebUI.extTegOpen = function()
 {
 	for(var i = 0; i<plugin.tegArray.length; i++)
-		window.open(plugin.tegArray[i].data.desc,"_blank");
+		openExternalURL(plugin.tegArray[i].data.desc);
 }
 
 theWebUI.tegItemRemove = function()
@@ -357,7 +356,6 @@ theWebUI.tegItemRemove = function()
 
 theWebUI.showTegURLInfo = function()
 {
-	var table = theWebUI.getTable("teg");
 	const tegId = theWebUI.activeExtTegId();
 	for(var i = 0; i<plugin.tegArray.length; i++)
 	{
@@ -382,7 +380,7 @@ plugin.createExtTegMenu = function(e, id)
 	plugin.tegArray = new Array();
 
 	var sr = theWebUI.getTable("teg").rowSel;
-	for(var k in sr) 
+	for(var k in sr)
 	{
 		if(sr[k] == true)
 		{
@@ -402,10 +400,10 @@ plugin.createExtTegMenu = function(e, id)
 	{
 	        if(plugin.canChangeMenu())
 	        {
-			theContextMenu.add([ theUILang.tegMenuLoad, "theWebUI.extTegLoad()"]);
-			theContextMenu.add([ theUILang.tegMenuOpen, "theWebUI.extTegOpen()"]);
-			theContextMenu.add([ theUILang.tegMenuDeleteItem, "theWebUI.tegItemRemove()"]);
-			theContextMenu.add([ theUILang.exsURLInfo, "theWebUI.showTegURLInfo()"] );
+			theContextMenu.add([ theUILang.tegMenuLoad, () => theWebUI.extTegLoad()]);
+			theContextMenu.add([ theUILang.tegMenuOpen, () => theWebUI.extTegOpen()]);
+			theContextMenu.add([ theUILang.tegMenuDeleteItem, () => theWebUI.tegItemRemove()]);
+			theContextMenu.add([ theUILang.exsURLInfo, () => theWebUI.showTegURLInfo()] );
 		}
 		else
 			theContextMenu.hide();
@@ -414,7 +412,7 @@ plugin.createExtTegMenu = function(e, id)
 	if(trtArray.length)
 	{
 	        var table = theWebUI.getTable("trt");
-		for(var k in table.rowSel)
+		for(k in table.rowSel)
 			table.rowSel[k] = false;
 		table.selCount = trtArray.length;
 		for(var i = 0; i<trtArray.length; i++)
@@ -440,8 +438,8 @@ catlist.contextMenuEntries = function(panelId, labelId) {
 	if (panelId === 'psearch' && idIsExTeg(labelId)) {
 		theWebUI.getTable('trt').clearSelection();
 		return plugin.canChangeMenu() ? [
-			[ theUILang.tegRefresh,  "theWebUI.tegRefresh()"],
-			[ theUILang.tegMenuDelete, "theWebUI.extTegDelete()"]
+			[ theUILang.tegRefresh,  () => theWebUI.tegRefresh()],
+			[ theUILang.tegMenuDelete, () => theWebUI.extTegDelete()]
 		] : false;
 	}
 	return plugin.contextMenuEntries(panelId, labelId);
@@ -508,7 +506,7 @@ theWebUI.loadTorrents = function(needSort)
 	plugin.loadTorrents.call(this,needSort);
 	var table = this.getTable("teg");
 	const tegId = theWebUI.activeExtTegId();
-	if(plugin.enabled && tegId) 
+	if(plugin.enabled && tegId)
 	{
 		var updated = false;
 		var tegItems = plugin.tegs[tegId].data;
@@ -525,13 +523,13 @@ theWebUI.loadTorrents = function(needSort)
 					updated = table.setValuesById(ndx,
 					{
 						name: item.name,
-						created: item.time-theWebUI.deltaTime/1000,
+						created: item.time,
 						peers: item.peers,
 						seeds: item.seeds,
 						size: item.size,
 						status: item.src,
 						label: item.cat
-					},true) || updated; 
+					},true) || updated;
 					updated = table.setIcon(ndx,"Engine"+item.src) || updated;
 				}
 			}
@@ -555,24 +553,24 @@ theWebUI.tegItemSelect = function(e,id)
 {
 	var sr = theWebUI.getTable("teg").rowSel;
 	var trtArray = new Array();
-	for(var k in sr) 
+	for(var k in sr)
 	{
 		if(sr[k] == true)
 		{
-			var nfo = plugin.getTegByRowId(k);	
+			var nfo = plugin.getTegByRowId(k);
 			if(nfo && nfo.data.hash && $type(theWebUI.torrents[nfo.data.hash]))
 				trtArray.push(nfo.data.hash);
 		}
 	}
 	var table = theWebUI.getTable("trt");
-	for(var k in table.rowSel)
+	for(k in table.rowSel)
 		table.rowSel[k] = false;
 	table.selCount = trtArray.length;
 	for(var i = 0; i<trtArray.length; i++)
 		table.rowSel[trtArray[i]] = true;
 	table.refreshSelection();
 	if(id && (nfo = plugin.getTegByRowId(id)) &&
-		nfo.data.hash && 
+		nfo.data.hash &&
 		$type(theWebUI.torrents[nfo.data.hash]))
 		theWebUI.trtSelect(e, nfo.data.hash);
 	else
@@ -591,7 +589,7 @@ theWebUI.tegItemSelect = function(e,id)
 
 theWebUI.tegItemDblClick = function(obj)
 {
-	var nfo = plugin.getTegByRowId(obj.id);	
+	var nfo = plugin.getTegByRowId(obj.id);
 	if(nfo)
 	{
 		if(nfo.data.hash && $type(theWebUI.torrents[nfo.data.hash]))
@@ -599,10 +597,9 @@ theWebUI.tegItemDblClick = function(obj)
 			var tmp = new Object();
 	                tmp.id = nfo.data.hash;
         		theWebUI.getTable("trt").ondblclick( tmp );
-        		delete tmp;
 		}
 		else
-			window.open(nfo.data.desc,"_blank");
+			openExternalURL(nfo.data.desc);
 	}
 }
 
@@ -610,28 +607,16 @@ plugin.resizeTop = theWebUI.resizeTop;
 theWebUI.resizeTop = function( w, h )
 {
 	plugin.resizeTop.call(theWebUI,w,h);
-	if(plugin.enabled)
-	{
-		if(w!==null)
-		{
-			$("#TegList").width( w );
-			if(theWebUI.configured)
-		       	       	this.getTable("teg").resize( w );
-		}
-        	if(h!==null)
-		{
-			$("#TegList").height( h );
-			if(theWebUI.configured)
-				this.getTable("teg").resize(null,h); 
-	       	}
-	}
+	// #TegList is sized by the layout, as #List is; only the rows need redrawing.
+	if(plugin.enabled && theWebUI.configured)
+		this.getTable("teg").resize(w,h);
 }
 
 plugin.config = theWebUI.config;
 theWebUI.config = function()
 {
 	$("#List").after($("<div>").attr("id","TegList").css("display","none"));
-	this.tables["teg"] =  
+	this.tables["teg"] =
 	{
 	        obj:		new dxSTable(),
 		container:	"TegList",
@@ -648,7 +633,7 @@ theWebUI.config = function()
 if(plugin.enabled && plugin.canChangeOptions())
 {
 	plugin.andShowSettings = theWebUI.addAndShowSettings;
-	theWebUI.addAndShowSettings = function(arg) 
+	theWebUI.addAndShowSettings = function(arg)
 	{
 		if(plugin.enabled)
 		{
@@ -672,7 +657,7 @@ if(plugin.enabled && plugin.canChangeOptions())
 		plugin.andShowSettings.call(theWebUI,arg);
 	}
 
-	plugin.dataWasChanged = function() 
+	plugin.dataWasChanged = function()
 	{
 		if(iv($('#exs_limit').val())!=theSearchEngines.globalLimit)
 			return(true);
@@ -691,7 +676,7 @@ if(plugin.enabled && plugin.canChangeOptions())
 	}
 
 	plugin.setSettings = theWebUI.setSettings;
-	theWebUI.setSettings = function() 
+	theWebUI.setSettings = function()
 	{
 		plugin.setSettings.call(this);
 		if(plugin.enabled && plugin.dataWasChanged())
@@ -732,7 +717,7 @@ plugin.refreshCategories = function()
 	else
         if($type(theSearchEngines.sites[theSearchEngines.current]))
 	{
-		for( var i=0; i<theSearchEngines.sites[theSearchEngines.current].cats.length; i++)
+		for( i=0; i<theSearchEngines.sites[theSearchEngines.current].cats.length; i++)
 			$('#exscategory').append("<option value='"+theSearchEngines.sites[theSearchEngines.current].cats[i]+"'>"+theSearchEngines.sites[theSearchEngines.current].cats[i]+"</option>");
 	}
 	$("#exscategory").prop("hidden", (theSearchEngines.current === -1));
@@ -769,8 +754,10 @@ plugin.onLangLoaded = function() {
 			$("<div>").addClass("col-12 col-md-3 justify-content-md-end").append(
 				$("<label>").attr({for:"teglabel"}).text(theUILang.Label + ":"),
 			),
-			$("<div>").addClass("col-12 col-md-9").append(
-				$("<input>").attr({type:"text", id:"teglabel"}),
+			$("<div>").addClass("col-12 col-md-9 d-flex").append(
+				$("<input>").attr({type:"text", id:"teglabel", placeholder:theUILang.Label}).addClass("flex-grow-1"),
+				$("<select>").attr({id:"teglabel_select"}).addClass("flex-grow-1"),
+				$("<button>").attr({type:"button", id:"teglabel_return_select"}).text(theUILang.Return_select_label),
 			),
 		),
 	);
@@ -787,6 +774,36 @@ plugin.onLangLoaded = function() {
 	if (thePlugins.isInstalled("_getdir")) {
 		new theWebUI.rDirBrowser("tegdir_edit");
 	}
+	$("#teglabel_select").on("change", function() {
+		switch (this.selectedIndex) {
+			case 0:
+				$("#teglabel").val("");
+				break;
+			case 1:
+				$(this).hide();
+				$("#teglabel").val("").show().trigger("focus");
+				$("#teglabel_return_select").show();
+				break;
+			default:
+				$("#teglabel").val(this.value);
+				break;
+		}
+	});
+	$("#teglabel_return_select").on("click", function() {
+		$(this).hide();
+		$("#teglabel").val("").hide();
+		$("#teglabel_select").prop("selectedIndex", 0).show();
+	});
+	theDialogManager.setHandler("tegLoadTorrents", "beforeShow", () => {
+		$("#teglabel").val("").hide();
+		$("#teglabel_return_select").hide();
+		$("#teglabel_select").empty().append(
+			$("<option>").text(theUILang.No_label),
+			$("<option>").text(theUILang.newLabel),
+			...[...theWebUI.categoryList.torrentLabelTree.torrentLabels.keys()]
+				.map(lbl => $("<option>").val(lbl).text(lbl)),
+		).prop("selectedIndex", 0).show();
+	});
 
 	const commonSettings = $("<fieldset>").append(
 		$("<legend>").text(theUILang.exsGlobalLimit),

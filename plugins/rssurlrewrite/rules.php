@@ -14,7 +14,7 @@ class rURLRewriteRule
 	public $hrefAsSrc;
 	public $hrefAsDest;
 
-	public function	__construct( $name, $pattern = '', $replacement = '', $enabled = 0, $rssHash = '', 
+	public function	__construct( $name, $pattern = '', $replacement = '', $enabled = 0, $rssHash = '',
 		$hrefAsSrc = 0, $hrefAsDest = 0 )
 	{
 		$this->name = $name;
@@ -27,7 +27,7 @@ class rURLRewriteRule
 	}
 	public function isApplicable( $rss, $groups )
 	{
-		return(($this->enabled==1) && 
+		return(($this->enabled==1) &&
 			(!$this->rssHash || (strlen($this->rssHash)==0) || ($this->rssHash==$rss->hash) || $groups->hashPresent( $this->rssHash, $rss->hash )));
 	}
         public function apply( &$href, &$guid )
@@ -38,7 +38,7 @@ class rURLRewriteRule
 		{
 			if($this->hrefAsDest)
 				$href = $dst;
-			else 				
+			else
 				$guid = $dst;
 		}
 		return($dst);
@@ -51,6 +51,11 @@ class rURLRewriteRulesList
 	public $modified = false;
         public $lst = array();
 
+	static public function cacheClasses()
+	{
+		return(array('rURLRewriteRule'));
+	}
+
 	static public function load( $mngr = null )
 	{
 		$cache = new rCache();
@@ -62,7 +67,7 @@ class rURLRewriteRulesList
 			if(is_null($mngr))
 			{
 				require_once( dirname(__FILE__).'/../rss/rss.php' );
-				$mngr = new rRSSManager();	
+				$mngr = new rRSSManager();
 			}
 			foreach($ar->lst as $rule)
 			{
@@ -76,7 +81,7 @@ class rURLRewriteRulesList
 			}
 			if($changed)
 				$ar->store();
-		}			
+		}
 		return($ar);
 	}
 	public function store()

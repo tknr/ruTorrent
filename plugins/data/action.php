@@ -6,7 +6,7 @@ if(isset($_REQUEST['result']))
 
 if(isset($_REQUEST['hash']) && isset($_REQUEST['no']))
 {
-	$req = new rXMLRPCRequest( 
+	$req = new rXMLRPCRequest(
 		new rXMLRPCCommand( "f.get_frozen_path", array($_REQUEST['hash'],intval($_REQUEST['no']))) );
 	if($req->success())
 	{
@@ -26,7 +26,7 @@ if(isset($_REQUEST['hash']) && isset($_REQUEST['no']))
 }
 
 if(isset($_REQUEST['readable']))
-	CachedEcho::send("Cant retrieve such large file, sorry","text/html");
+	CachedEcho::send("Can't retrieve such a large file, sorry","text/html");
 else
 {
 	header("HTTP/1.0 302 Moved Temporarily");

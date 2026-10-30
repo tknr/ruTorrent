@@ -1,5 +1,10 @@
 // this function is obsolete
 
+function cacheBust(url) {
+	var sep = (url.indexOf('?') === -1) ? '?' : '&';
+	return url + sep + 'v=' + (typeof theWebUI !== 'undefined' ? theWebUI.version.replace(/\./g, '') : Date.now());
+}
+
 function injectScript(fname,initFunc)
 {
 	var h = document.getElementsByTagName("head").item(0);
@@ -9,9 +14,9 @@ function injectScript(fname,initFunc)
 		s.onload = initFunc;
 	}
 	if(s.setAttribute)
-		s.setAttribute('src', fname);
+		s.setAttribute('src', cacheBust(fname));
 	else
-		s.src = fname;
+		s.src = cacheBust(fname);
 	s.type = "text/javascript";
 	void (h.appendChild(s));
 }
@@ -20,7 +25,7 @@ function injectCSS(fname, onLoadFunc)
 {
 	var newSS=document.createElement('link');
 	newSS.rel='stylesheet';
-	newSS.href=fname;
+	newSS.href=cacheBust(fname);
 	newSS.onload = onLoadFunc;
 	var h = document.getElementsByTagName("head").item(0);
 	void (h.appendChild(newSS));
@@ -166,7 +171,7 @@ rPlugin.prototype.loadLangPrim = function(lang,template,sendNotify)
 	var self = this;
 	$.ajax(
 	{
-		url: template.replace('{lang}',lang), // this is because plugin.path may be changed during call
+		url: cacheBust(template.replace('{lang}',lang)),
 		dataType: "script",
 		cache: true
 	}).done( function()
@@ -314,7 +319,7 @@ rPlugin.prototype.removePageFromTabs = function(id)
 rPlugin.prototype.registerTopMenu = function(weight, name, onclick) {
 	if (this.canChangeToolbar()) {
 		if (!$$("mnu_plugins"))
-			this.addButtonToToolbar("plugins", theUILang.Plugins, "", "help", true);
+			this.addButtonToToolbar("plugins", theUILang.Plugins, null, "help", true);
 		weight = iv(weight);
 		const newItem = $("<li>").data({weight:weight}).append(
 			$("<a>")
@@ -343,7 +348,8 @@ rPlugin.prototype.registerTopMenu = function(weight, name, onclick) {
  * wrapper anchor of the button.
  * @param {string} name Name of the button, will be applied as the tooltip text
  * on desktop and description title on mobile.
- * @param {Function | string} onclick Click handler of the button.
+ * @param {?Function} onclick Click handler of the button. Anything other than
+ * a function is not run: the button gets no click handler.
  * @param {string} idBefore HTML `id` of an existing button for the new button
  * to be inserted before. If no button is found, the new button will be added
  * before the settings button.
@@ -353,10 +359,12 @@ rPlugin.prototype.registerTopMenu = function(weight, name, onclick) {
  */
 rPlugin.prototype.addButtonToToolbar = function(id, name, onclick, idBefore, isDropDown) {
 	if (this.canChangeToolbar()) {
+		if (onclick && $type(onclick) !== "function")
+			console.warn("Toolbar button action must be a function, not a string: " + onclick);
 		let newBtn = $("<a>")
 			.attr({id:`mnu_${id}`, href:"#", title:`${name}...`})
 			.on({
-				click: $type(onclick) === "function" ? onclick : () => eval(onclick),
+				...($type(onclick) === "function" ? {click: onclick} : {}),
 				focus: (ev) => ev.target.blur(),
 			})
 			.addClass("nav-link top-menu-item")
@@ -412,7 +420,7 @@ rPlugin.prototype.removeSeparatorFromToolbar = function(idBefore)
 /**
  * Add a pane (status cell) to the status bar.
  * @param {string} id HTML `id` of the status cell to be added.
- * @param {object | HTMLElement | string} statusCell The content of the status cell. 
+ * @param {object | HTMLElement | string} statusCell The content of the status cell.
  * Can be a jQuery object, an HTML element, or an HTML string.
  * @param {number} no Number of position where the status cell will be placed.
  * The status cell will be inserted before the `no`th existing cell, if `no` is positive

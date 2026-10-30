@@ -66,7 +66,7 @@ if(plugin.canChangeColumns())
 if(plugin.canChangeOptions())
 {
 	plugin.addAndShowSettings = theWebUI.addAndShowSettings;
-	theWebUI.addAndShowSettings = function(arg) 
+	theWebUI.addAndShowSettings = function(arg)
 	{
 		if(plugin.enabled)
 		{
@@ -86,7 +86,7 @@ if(plugin.canChangeOptions())
 		plugin.addAndShowSettings.call(theWebUI,arg);
 	}
 
-	theWebUI.throttleWasChanged = function() 
+	theWebUI.throttleWasChanged = function()
 	{
 		for(var i=0; i<theWebUI.maxThrottle; i++)
 		{
@@ -99,7 +99,7 @@ if(plugin.canChangeOptions())
 	}
 
 	plugin.setSettings = theWebUI.setSettings;
-	theWebUI.setSettings = function() 
+	theWebUI.setSettings = function()
 	{
 		plugin.setSettings.call(this);
 		if(plugin.enabled && this.throttleWasChanged())
@@ -151,12 +151,12 @@ if(plugin.canChangeMenu())
 				if(table.selCount==1)
 					curNo = theWebUI.getThrottleData(id);
 				var down = [];
-				down.push([theUILang.mnuUnlimited, (curNo==-1) ? null : "theWebUI.setThrottle('-1')"]);
+				down.push([theUILang.mnuUnlimited, (curNo==-1) ? null : () => theWebUI.setThrottle('-1')]);
 				down.push([CMENU_SEP]);
-				for(var i=0; i<theWebUI.maxThrottle; i++)
+				for(let i=0; i<theWebUI.maxThrottle; i++)
 				{
 					if(theWebUI.isCorrectThrottle(i))
-						down.push([theWebUI.throttles[i].name,(i!=curNo) ? "theWebUI.setThrottle('"+i+"')" : null]);
+						down.push([theWebUI.throttles[i].name,(i!=curNo) ? () => theWebUI.setThrottle(i) : null]);
 				}
 				theContextMenu.add(el,[CMENU_CHILD, theUILang.mnuThrottle, down]);
 			}
@@ -169,34 +169,19 @@ if(plugin.canChangeMenu())
 		var req = '';
 		for(var k in sr)
        			if(sr[k] && (k.length==40))
-				req += ("&hash=" + k + "&v="+throttle);
+				req += ("&hash=" + k);
 		if(req.length>0)
-			this.request("?action=setthrottle"+req+"&list=1",[this.addTorrents, this]);
+			this.request("?action=setthrottle&v="+throttle+req+"&list=1",[this.receiveTorrents, this]);
 	}
 
 	rTorrentStub.prototype.setthrottle = function()
 	{
-		for(var i=0; i<this.vs.length; i++)
-		{
-			var needRestart = (theWebUI.torrents[this.hashes[i]].status==theUILang.Seeding) || (theWebUI.torrents[this.hashes[i]].status==theUILang.Downloading);
-			var name = (this.vs[i]>=0) ? "thr_"+this.vs[i] : "";
-			if(needRestart)
-			{
-				cmd = new rXMLRPCCommand('d.stop');
-				cmd.addParameter("string",this.hashes[i]);
-				this.commands.push( cmd );
-			}
-			cmd = new rXMLRPCCommand('d.set_throttle_name');
-			cmd.addParameter("string",this.hashes[i]);
-			cmd.addParameter("string",name);
-			this.commands.push( cmd );
-			if(needRestart)
-			{
-				cmd = new rXMLRPCCommand('d.start');
-				cmd.addParameter("string",this.hashes[i]);
-				this.commands.push( cmd );
-			}
-		}
+		this.content = "apply=1&v="+encodeURIComponent(this.vs[0]);
+		for(var i=0; i<this.hashes.length; i++)
+			this.content += ("&hash%5B%5D="+encodeURIComponent(this.hashes[i]));
+		this.contentType = "application/x-www-form-urlencoded";
+		this.mountPoint = "plugins/throttle/action.php";
+		this.dataType = "script";
 	}
 }
 
@@ -264,5 +249,7 @@ plugin.onRemove = function()
 	theWebUI.getTable("trt").removeColumnById("throttle");
 	if(thePlugins.isInstalled("rss"))
 		theWebUI.getTable("rss").removeColumnById("throttle");
+	if(thePlugins.isInstalled("extsearch"))
+		theWebUI.getTable("teg").removeColumnById("throttle");
 	theRequestManager.removeRequest( "trt", plugin.reqId );
 }

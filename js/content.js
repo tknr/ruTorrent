@@ -47,21 +47,28 @@ function makeContent() {
 		},
 	});
 
+	// One toast per item. The input is cleared only after a confirmed
+	// success, so a refusal leaves it to be corrected and sent again, and
+	// the send button is restored for this form alone.
+	var addTorrentFinished = function(frame, input, button, isEmpty) {
+		var answer = uploadFrameAnswer(frame);
+		if(answer === null)
+			return;
+		var added = false;
+		uploadResults(answer).forEach(function(result) {
+			noty(result.text, result.kind);
+			added = added || (result.kind == "success");
+		});
+		if(added)
+			$(input).val("");
+		$(button).prop("disabled", isEmpty());
+	};
 	$(document.body).append($("<iframe name='uploadfrm'/>").css({visibility: "hidden"}).attr( { name: "uploadfrm" } ).width(0).height(0).on('load', function() {
-		$("#torrent_file").val("");
-		$("#add_button").prop("disabled",true);
-		var d = this.contentDocument;
-		if (d && (d.location.href != "about:blank")) {
-			try { var txt = d.body.textContent ? d.body.textContent : d.body.innerText; eval(txt); } catch(e) {}
-		}
+		addTorrentFinished(this, "#torrent_file", "#add_button",
+			() => !$$("torrent_file").files || ($$("torrent_file").files.length === 0));
 	}));
 	$(document.body).append($("<iframe name='uploadfrmurl'/>").css({visibility: "hidden"}).attr( { name: "uploadfrmurl" } ).width(0).height(0).on('load', function() {
-		$("#url").val("");
-		var d = this.contentDocument;
-		if (d && d.location.href != "about:blank")
-			try {
-				eval(d.body.textContent ? d.body.textContent : d.body.innerText);
-			} catch(e) {}
+		addTorrentFinished(this, "#url", "#add_url", () => $("#url").val().trim() === "");
 	}));
 
 	const paddContent = $("<div>").addClass("cont").append(
@@ -154,8 +161,8 @@ function makeContent() {
 							$("<label>").attr({for: "url"}).text(theUILang.Torrent_URL + ": "),
 						),
 						$("<div>").addClass("col-md-6").append(
-							$("<input>")
-								.attr({type: "text", id: "url", name: "url", placeholder: theUILang.Torrent_URL})
+							$("<textarea>")
+								.attr({id: "url", name: "url", placeholder: theUILang.Torrent_URL_multiline, rows: 4})
 								.on("input", (ev) => {$('#add_url').prop('disabled', ev.target.value.trim() === '');})
 								.addClass("flex-grow-1"),
 						),
@@ -195,11 +202,12 @@ function makeContent() {
 	theDialogManager.setHandler('tadd', 'beforeShow', function() {
 		$("#tadd_label").hide();
 		$("#tadd-return-select").hide();
-		$("#tadd_label_select").empty()
-			.append('<option selected>'+theUILang.No_label+'</option>')
-			.append('<option>'+theUILang.newLabel+'</option>').show();
-		for(const [torrentLabel] of theWebUI.categoryList.torrentLabelTree.torrentLabels)
-			$("#tadd_label_select").append("<option>"+torrentLabel+"</option>");
+		$("#tadd_label_select").empty().append(
+			$("<option>").attr("selected", "selected").text(theUILang.No_label),
+			$("<option>").text(theUILang.newLabel),
+			...[...theWebUI.categoryList.torrentLabelTree.torrentLabels.keys()]
+				.map(torrentLabel => $("<option>").val(torrentLabel).text(torrentLabel)),
+		).show();
 		$("#torrent_file").val("");
 		$("#add_button").prop("disabled", true);
 		$("#tadd_label_select").trigger('change');
@@ -372,9 +380,9 @@ function makeContent() {
 	);
 	theDialogManager.setHandler('dlgLabel', 'afterShow', function() {
 		setTimeout(function() {
-			$("#txtLabel").off('focus').on('focus',function() { 
-				$(this).select(); 
-			}).trigger('focus');		
+			$("#txtLabel").off('focus').on('focus',function() {
+				$(this).select();
+			}).trigger('focus');
 		}, 0);
 	});
 	theDialogManager.make("yesnoDlg","",
@@ -399,7 +407,7 @@ function makeContent() {
 			),
 		),
 	);
-	
+
 	theOptionsWindow.init();
 }
 
@@ -455,6 +463,16 @@ function correctContent()
 		rPlugin.prototype.removePageFromOptions("st_dl");
 	if(!(theWebUI.showFlags & showEnum.showConnectionPage))
 		rPlugin.prototype.removePageFromOptions("st_con");
+	// rtorrent 0.16.x: network.port_open is an unused no-op (nothing in rtorrent
+	// reads it; an explicit deprecated no-op since 0.16.18). Drop its checkbox
+	// from the Connection page, and add an empty grid cell after the "randomize"
+	// checkbox so the two-column layout stays even and the port-range label + its
+	// field remain paired on one row. rtorrent <= 0.9.x keeps the checkbox.
+	if(theWebUI.systemInfo.rTorrent.iVersion>=0x1000)
+	{
+		$("#port_open").closest(".col-md-6").remove();
+		$("#port_random").closest(".col-md-6").after($("<div>").addClass("col-md-6"));
+	}
 	if(!(theWebUI.showFlags & showEnum.showBittorentPage))
 		rPlugin.prototype.removePageFromOptions("st_bt");
 	if(!(theWebUI.showFlags & showEnum.showAdvancedPage))
@@ -483,7 +501,7 @@ function correctContent()
         if(!(theWebUI.showFlags & showEnum.canChangeTorrentOptions))
 	{
 		$("#addtorrent #torrent_options").remove();
-	}	
+	}
         if(!(theWebUI.showFlags & showEnum.canAddTorrentsWithoutPath))
 	{
 		$("#addtorrent #not_add_path_option").remove();
@@ -557,6 +575,16 @@ function correctContent()
 			"d.set_connection_seed"		: { name: "d.connection_seed.set", prm: 0 }
 		});
 	}
+	// rTorrent gained d.is_partially_done in 0.9.0. An unknown command faults the
+	// whole d.multicall rather than one field, so on older daemons route it to
+	// the harmless no-op "cat": it answers with an empty string, which keeps the
+	// field in place and reads as "not partially done". Firing at iVersion 0
+	// (daemon unreachable at load) is deliberate: cat is understood by every
+	// daemon generation, so an unknown version degrades safely.
+	if(theWebUI.systemInfo.rTorrent.iVersion<0x900)
+	{
+		theRequestManager.aliases["d.is_partially_done"] = { name: "cat", prm: 0 };
+	}
 	if(theWebUI.systemInfo.rTorrent.iVersion>=0x904)
 	{
 		$.extend(theRequestManager.aliases,
@@ -618,6 +646,8 @@ function correctContent()
 			"d.get_skip_total"	:	{ name: "d.skip.total", prm: 0 },
 			"d.get_state"		:	{ name: "d.state", prm: 0 },
 			"d.get_state_changed"	:	{ name: "d.state_changed", prm: 0 },
+			"d.get_timestamp_finished"      : { name: "d.timestamp.finished", prm: 0 },
+			"d.get_timestamp_started"      : { name: "d.timestamp.started", prm: 0 },
 			"d.get_state_counter"	:	{ name: "d.state_counter", prm: 0 },
 			"d.get_throttle_name"	:	{ name: "d.throttle_name", prm: 0 },
 			"d.get_tied_to_file"	:	{ name: "d.tied_to_file", prm: 0 },
@@ -849,6 +879,95 @@ function correctContent()
 			"dht_add_node"		:	{ name: "dht.add_node", prm: 1 },
 			"dht_statistics"	:	{ name: "dht.statistics", prm: 0 },
 			"load"			:	{ name: "load.normal", prm: 1 }
+		});
+	}
+	// iVersion packs one version component per byte, so 0.10.2 is 0x0a02
+	// (0x1002 would be 0.16.2). Newer daemons inherit these.
+	if(theWebUI.systemInfo.rTorrent.iVersion>=0x0a02)
+	{
+		$.extend(theRequestManager.aliases,
+		{
+			"dht"                           : { name: "dht.mode.set", prm: 1 },
+			"throttle.max_uploads.div"      : { name: "throttle.max_uploads.div._val", prm: 1 },
+			"throttle.max_uploads.global"   : { name: "throttle.max_uploads.global._val", prm: 1 },
+			"throttle.max_downloads.div"    : { name: "throttle.max_downloads.div._val", prm: 1 },
+			"throttle.max_downloads.global" : { name: "throttle.max_downloads.global._val", prm: 1 },
+			"ratio.enable"                  : { name: "group.seeding.ratio.enable", prm: 1 },
+			"ratio.disable"                 : { name: "group.seeding.ratio.disable", prm: 1 },
+			"ratio.min"                     : { name: "group2.seeding.ratio.min", prm: 0 },
+			"ratio.max"                     : { name: "group2.seeding.ratio.max", prm: 0 },
+			"ratio.upload"                  : { name: "group2.seeding.ratio.upload", prm: 0 },
+			"ratio.min.set"                 : { name: "group2.seeding.ratio.min.set", prm: 1 },
+			"ratio.max.set"                 : { name: "group2.seeding.ratio.max.set", prm: 1 },
+			"ratio.upload.set"              : { name: "group2.seeding.ratio.upload.set", prm: 1 },
+			"connection_leech"              : { name: "protocol.connection.leech.set", prm: 1 },
+			"connection_seed"               : { name: "protocol.connection.seed.set", prm: 1 },
+		});
+	}
+	if(theWebUI.systemInfo.rTorrent.iVersion>=0x1000)
+	{
+		// rtorrent 0.16.x: deprecated aliases (schedule2, schedule_remove2,
+		// execute2, network.http.max_open*, group2.*) are gated behind
+		// method.use_deprecated which since 0.16.14 can no longer be enabled
+		// from the rc file — only via the -D launch flag. Override the JS
+		// alias map so theRequestManager.map() returns the canonical names
+		// for any code path that builds an XMLRPC command client-side and
+		// sends it via httprpc/multirpc. Mirrors php/methods-0.16.0.php.
+		$.extend(theRequestManager.aliases,
+		{
+			"schedule"          : { name: "schedule",                              prm: 1 },
+			"schedule_remove"   : { name: "schedule.remove",                       prm: 1 },
+			"execute"           : { name: "execute",                               prm: 1 },
+			"get_max_open_http" : { name: "network.http.max_total_connections",    prm: 0 },
+			"set_max_open_http" : { name: "network.http.max_total_connections.set",prm: 1 },
+			"ratio.min"         : { name: "group.seeding.ratio.min",               prm: 0 },
+			"ratio.max"         : { name: "group.seeding.ratio.max",               prm: 0 },
+			"ratio.upload"      : { name: "group.seeding.ratio.upload",            prm: 0 },
+			"ratio.min.set"     : { name: "group.seeding.ratio.min.set",           prm: 1 },
+			"ratio.max.set"     : { name: "group.seeding.ratio.max.set",           prm: 1 },
+			"ratio.upload.set"  : { name: "group.seeding.ratio.upload.set",        prm: 1 },
+		});
+	}
+	if(theWebUI.systemInfo.rTorrent.iVersion>=0x1010)
+	{
+		// rtorrent >= 0.16.16: override aliases for commands that were
+		// removed or now log deprecation warnings. Mirrors php/methods-0.16.16.php.
+		$.extend(theRequestManager.aliases,
+		{
+			"get_max_open_http"      : { name: "system.sockets.http.max_size",           prm: 0 },
+			"set_max_open_http"      : { name: "system.sockets.http.max_alloc.set",      prm: 1 },
+			"set_max_open_files"     : { name: "system.sockets.files.max_alloc.set",     prm: 1 },
+			// The d.multicall entry overrides the d.multicall => d.multicall2
+			// remap from the 0.9.4 table above; d.multicall2 is gone in 0.16.16.
+			"d.multicall"            : { name: "d.multicall",                             prm: 1 },
+			"d.multicall2"           : { name: "d.multicall",                             prm: 1 },
+			"get_http_proxy"         : { name: "network.proxy.http",                     prm: 0 },
+			"set_http_proxy"         : { name: "network.proxy.http.set",                 prm: 1 },
+			"http_proxy"             : { name: "network.proxy.http",                     prm: 0 },
+			"get_proxy_address"      : { name: "network.proxy.global",                    prm: 0 },
+			"set_proxy_address"      : { name: "network.proxy.global.set",                prm: 1 },
+			"get_max_open_sockets"   : { name: "system.sockets.max_size",                prm: 0 },
+			"network.open_sockets"   : { name: "system.sockets.size",                    prm: 0 },
+			"network.max_open_sockets": { name: "system.sockets.max_size",               prm: 0 },
+		});
+	}
+	if(theWebUI.systemInfo.rTorrent.iVersion>=0x1012)
+	{
+		// rtorrent >= 0.16.18: the listening-port commands were renamed
+		// (network.port_range/.random -> network.listen.port.range/.random) and
+		// network.port_open was removed. On a normal launch (no -D) the old names
+		// are absent and fault; mirror php/methods-0.16.18.php so any client-side
+		// XMLRPC keeps working. network.port_open has no replacement -> route it
+		// to the harmless "cat" no-op.
+		$.extend(theRequestManager.aliases,
+		{
+			"get_port_range"  : { name: "network.listen.port.range",      prm: 0 },
+			"set_port_range"  : { name: "network.listen.port.range.set",  prm: 1 },
+			"get_port_random" : { name: "network.listen.port.random",     prm: 0 },
+			"set_port_random" : { name: "network.listen.port.random.set", prm: 1 },
+			"get_port_open"   : { name: "cat", prm: 0 },
+			"set_port_open"   : { name: "cat", prm: 1 },
+			"port_open"       : { name: "cat", prm: 0 },
 		});
 	}
 	if(theWebUI.systemInfo.rTorrent.iVersion < 0x907) {

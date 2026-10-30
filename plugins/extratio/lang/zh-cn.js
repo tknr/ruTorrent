@@ -3,10 +3,10 @@
  *
  * Chinese Simplified language file.
  *
- * Author: 
+ * Author:
  */
 
- theUILang.ratioRulesManager	= "规则管理器";
+ theUILang.ratioRulesManager	= "分享率规则管理器";
  theUILang.mnu_ratiorule	= "分享率规则";
  theUILang.ratAddRule		= "添加";
  theUILang.ratDelRule		= "删除";

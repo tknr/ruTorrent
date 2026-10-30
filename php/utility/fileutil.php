@@ -6,25 +6,58 @@ require_once( 'user.php' );
 class FileUtil
 {
 	private static $profilePathInstance = null;
-	
+
 	public static function getFileName($path)
 	{
 		$arr = explode('/',$path);
 		return(end($arr));
 	}
-	
+
 	public static function addslash( $str )
 	{
 		$len = strlen( $str );
 		return( (($len == 0) || ($str[$len-1] == '/')) ? $str : $str.'/' );
 	}
-	
+
 	public static function delslash( $str )
 	{
 		$len = strlen( $str );
 		return( (($len == 0) || ($str[$len-1] != '/')) ? $str : substr($str,0,$len-1) );
 	}
-	
+
+	private static function logFileStreamScheme( $path )
+	{
+		if( !is_string( $path ) ||
+			!preg_match('/^([A-Za-z][A-Za-z0-9+.-]*):\/\//', $path, $matches) )
+			return(null);
+		return($matches[1]);
+	}
+
+	private static function fileUriFilesystemPath( $path )
+	{
+		$parts = parse_url($path);
+		if( !is_array($parts) || !isset($parts['scheme']) ||
+			(strcasecmp($parts['scheme'], 'file') != 0) || !isset($parts['path']) ||
+			isset($parts['user']) || isset($parts['pass']) || isset($parts['port']) ||
+			isset($parts['query']) || isset($parts['fragment']) )
+			return(null);
+		$host = isset($parts['host']) ? $parts['host'] : '';
+		if( ($host === '') || (strcasecmp($host, 'localhost') == 0) )
+			return($parts['path']);
+		return( (DIRECTORY_SEPARATOR == '\\') ?
+			'\\\\'.$host.str_replace('/', '\\', $parts['path']) : null );
+	}
+
+	private static function isAbsoluteLogPath( $path )
+	{
+		if( !is_string( $path ) || ($path === '') )
+			return(false);
+		if( $path[0] == '/' )
+			return(true);
+		return( (DIRECTORY_SEPARATOR == '\\') &&
+			(preg_match('/^[A-Za-z]:[\\\\\/]/', $path) || (strncmp($path, '\\\\', 2) == 0)) );
+	}
+
 	public static function fullpath($path,$base = '')
 	{
 		$root  = '';
@@ -44,7 +77,7 @@ class FileUtil
 		}
 		return($root.implode('/', $newpath));
 	}
-	
+
 	public static function getProfilePath()
 	{
 		if (is_null(self::$profilePathInstance))
@@ -52,11 +85,11 @@ class FileUtil
 
 		return(self::$profilePathInstance);
 	}
-	
+
 	public static function getProfilePathEx($user = null)
 	{
 		global $profilePath;
-		$ret = self::fullpath(isset($profilePath) ? $profilePath : '../../share', dirname(__FILE__));		
+		$ret = self::fullpath(isset($profilePath) ? $profilePath : '../../share', dirname(__FILE__));
 		if(is_null($user))
 			$user = User::getUser();
 		if($user!='')
@@ -65,35 +98,38 @@ class FileUtil
 			if(!is_dir($ret))
 				self::makeDirectory( array($ret,$ret.'/settings',$ret.'/torrents',$ret.'/tmp') );
 		}
-		return $ret;		
+		return $ret;
 	}
-	
+
 	public static function getSettingsPath()
 	{
 		return( self::getProfilePath().'/settings' );
 	}
-	
+
 	public static function getSettingsPathEx($user = null)
 	{
-		return( self::getProfilePathEx($user).'/settings' );	
+		return( self::getProfilePathEx($user).'/settings' );
 	}
 
 	public static function getUploadsPath()
 	{
 		return( self::getProfilePath().'/torrents' );
 	}
-	
+
 	public static function getUploadsPathEx($user = null)
 	{
 		return( self::getProfilePathEx($user).'/torrents' );
 	}
-	
+
 	public static function getPluginConf($plugin)
 	{
 		$ret = '';
 		$conf = dirname(__FILE__).'/../../plugins/'.$plugin.'/conf.php';
 		if(is_file($conf) && is_readable($conf))
 			$ret.='require("'.$conf.'");';
+		$local = dirname(__FILE__).'/../../plugins/'.$plugin.'/conf.local.php';
+		if(is_file($local) && is_readable($local))
+			$ret.='require("'.$local.'");';
 		$user = User::getUser();
 		if($user!='')
 		{
@@ -103,7 +139,7 @@ class FileUtil
 		}
 		return($ret);
 	}
-	
+
 	public static function getConfFile($name)
 	{
 		$user = User::getUser();
@@ -115,14 +151,14 @@ class FileUtil
 		}
 		return(false);
 	}
-	
+
 	public static function getUniqueFilename($fname)
 	{
 		while(file_exists($fname))
 		{
 			$ext = '';
 			$pos = strrpos($fname,'.');
-			if($pos!==false) 
+			if($pos!==false)
 			{
 				$ext = substr($fname,$pos);
 				$fname = substr($fname,0,$pos);
@@ -130,7 +166,7 @@ class FileUtil
 			$pos = preg_match('/.*\((?P<no>\d+)\)$/',$fname,$matches);
 			$no = 1;
 			if($pos)
-			{		
+			{
 				$no = intval($matches["no"])+1;
 				$fname = substr($fname,0,strrpos($fname,'('));
 			}
@@ -146,10 +182,10 @@ class FileUtil
 		return( $overwriteUploadedTorrents ? $fname : self::getUniqueFilename($fname));
 	}
 
-	public static function getTempDirectory() 
+	public static function getTempDirectory()
 	{
-		global $tempDirectory;		
-		global $tempDirectory_init_done;		
+		global $tempDirectory;
+		global $tempDirectory_init_done;
 		if(!$tempDirectory_init_done)
 		{
 			if(empty($tempDirectory))
@@ -176,13 +212,13 @@ class FileUtil
 				if(empty($tempDirectory))
 				{
 					$tempDirectory = self::getProfilePath().'/tmp';
-					FileUtil::makeDirectory($tempDirectory);
+					self::makeDirectory($tempDirectory, null, true);
 				}
 			}
 			else
 			{
-				// User provided, create if not exist.
-				FileUtil::makeDirectory($tempDirectory);
+				// User provided: an existing directory may have a protected mode.
+				self::makeDirectory($tempDirectory, null, true);
 			}
 			// Make sure that temp dir always have trail slash.
 			$tempDirectory = self::addslash( $tempDirectory );
@@ -205,46 +241,66 @@ class FileUtil
 		} while(file_exists($fname));	// this is no guarantee, of course...
 		return($fname);
 	}
-	
-	public static function makeDirectory( $dirs, $perms = null )
+
+	public static function makeDirectory($dirs, $perms = null, $preserveExisting = false)
 	{
 		global $profileMask;
 		if(is_null($perms))
 			$perms = isset($profileMask) ? $profileMask : 0777;
 		$oldMask = umask(0);
-		if(is_array($dirs))
-			foreach($dirs as $dir)
+		foreach(is_array($dirs) ? $dirs : array($dirs) as $dir)
+		{
+			// A directory that is already there keeps the mode it has: only a
+			// missing one is created, and with the mode the caller asked for.
+			if($preserveExisting)
+			{
+				if(!is_dir($dir))
+					@mkdir($dir, $perms, true);
+			}
+			else
 				(file_exists(self::addslash($dir).'.') && @chmod($dir,$perms)) || @mkdir($dir,$perms,true);
-		else
-			(file_exists(self::addslash($dirs).'.') && @chmod($dirs,$perms)) || @mkdir($dirs,$perms,true);
+		}
 		@umask($oldMask);
-	} 
+	}
 
 	// [fixme] hidden files doesn't processed
 	public static function deleteDirectory( $dir )
 	{
 		$dir = self::addslash($dir);
 		$files = array_diff(scandir($dir), array('.','..'));
-		foreach($files as $file) 
+		foreach($files as $file)
 		{
 			$path = $dir.$file;
-			is_dir($path) ? deleteDirectory($path) : unlink($path);
+			is_dir($path) ? self::deleteDirectory($path) : unlink($path);
 		}
 		return(rmdir($dir));
 	}
-	
+
 	public static function toLog( $str )
-	{		
-		global $log_file;
+	{
+		global $log_file, $profileMask;
 		if( $log_file && strlen( $log_file ) > 0 )
 		{
-			// dmrom: set proper permissions (need if rtorrent user differs from www user)
-			if( !is_file( $log_file ) )
+			$streamScheme = self::logFileStreamScheme( $log_file );
+			$isFileStream = !is_null($streamScheme) && (strcasecmp($streamScheme, 'file') == 0);
+			$isFilesystem = is_null($streamScheme) || $isFileStream;
+			$filesystemPath = $isFileStream ? self::fileUriFilesystemPath($log_file) : $log_file;
+			if( $isFilesystem && (is_null($filesystemPath) || !self::isAbsoluteLogPath( $filesystemPath )) )
 			{
-				touch( $log_file );
-				chmod( $log_file, 0666 );
+				trigger_error('$log_file must be an absolute path or stream URI; the log line was not written.', E_USER_WARNING);
+				return;
 			}
-			$w = fopen( $log_file, "ab+" );
+			$logTarget = $isFilesystem ? $filesystemPath : $log_file;
+			$exists = $isFilesystem ? file_exists( $logTarget ) : @file_exists( $logTarget );
+			// dmrom: set proper permissions (need if rtorrent user differs from www user)
+			if( !$exists && $isFilesystem )
+			{
+				touch( $logTarget );
+				chmod( $logTarget, (isset($profileMask) ? $profileMask : 0777) & 0666 );
+			}
+			// Regular and unstatable stream logs only need write access. Keep the
+			// old mode for FIFOs, where a write-only open blocks until a reader appears.
+			$w = fopen( $logTarget, (!$isFilesystem && !$exists) || is_file( $logTarget ) ? "ab" : "ab+" );
 			if( $w )
 			{
 				fputs( $w, "[".date_create()->format('Y-m-d H:i:s')."] {$str}\n" );
@@ -252,14 +308,14 @@ class FileUtil
 			}
 		}
 	}
-	
-	public static function getMinFilePerms( $file, $chmod = 755 )
+
+	public static function getMinFilePerms( $file, $chmod = 0755 )
 	{
 		$code = fileperms($file);
-		
+
 		if($code!==false)
-			return((decoct($code) & 0777) >= $chmod);
-		
+			return(($code & 0777) >= $chmod);
+
 		return false;
 	}
 }

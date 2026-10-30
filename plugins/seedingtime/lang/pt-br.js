@@ -3,10 +3,11 @@
  *
  * Portuguese (Brazil) language file.
  *
- * Author: 
+ * Author:
  */
 
  theUILang.seedingTime		= "Finalizado";
  theUILang.addTime		= "Adicionado";
+ theUILang.seedingTimeHighlight		= "Destacar torrents finalizados há pelo menos (ex.: 1d, 2w)";
 
 thePlugins.get("seedingtime").langLoaded();

@@ -3,22 +3,22 @@
  * XMPPHP: The PHP XMPP Library
  * Copyright (C) 2008  Nathanael C. Fritz
  * This file is part of SleekXMPP.
- * 
+ *
  * XMPPHP is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
- * 
+ *
  * XMPPHP is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with XMPPHP; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  *
- * @category   xmpphp 
+ * @category   xmpphp
  * @package	XMPPHP
  * @author	 Nathanael C. Fritz <JID: fritzy@netflint.net>
  * @author	 Stephan Wentz <JID: stephan@jabber.wentz.it>
@@ -31,8 +31,8 @@ require_once dirname(__FILE__) . "/XMPP.php";
 
 /**
  * XMPPHP Main Class
- * 
- * @category   xmpphp 
+ *
+ * @category   xmpphp
  * @package	XMPPHP
  * @author	 Nathanael C. Fritz <JID: fritzy@netflint.net>
  * @author	 Stephan Wentz <JID: stephan@jabber.wentz.it>
@@ -48,7 +48,10 @@ class XMPPHP_BOSH extends XMPPHP_XMPP {
 		protected $http_buffer = Array();
 		protected $session = false;
 
-		public function connect($server, $wait='1', $session=false) {
+		public function connect($server = null, $wait = '1', $session = false) {
+			if($server === null) {
+				throw new XMPPHP_Exception("XMPPHP_BOSH::connect() requires a BOSH endpoint URL.");
+			}
 			$this->http_server = $server;
 			$this->use_encryption = false;
 			$this->session = $session;
@@ -147,7 +150,15 @@ class XMPPHP_BOSH extends XMPPHP_XMPP {
 			}
 		}
 
-		public function send($msg) {
+		/**
+		 * Send to the BOSH endpoint.
+		 *
+		 * @param string $msg
+		 * @param integer $timeout Accepted for signature compatibility with
+		 *                         XMPPHP_XMLStream::send(); BOSH writes over cURL
+		 *                         rather than a socket, so there is nothing to time out on.
+		 */
+		public function send($msg, $timeout = null) {
 			$this->log->log("SEND: $msg",  XMPPHP_Log::LEVEL_VERBOSE);
 			$msg = new SimpleXMLElement($msg);
 			#$msg->addAttribute('xmlns', 'jabber:client');
@@ -157,7 +168,6 @@ class XMPPHP_BOSH extends XMPPHP_XMPP {
 
 		public function reset() {
 			$this->xml_depth = 0;
-			unset($this->xmlobj);
 			$this->xmlobj = array();
 			$this->setupParser();
 			#$this->send($this->stream_start);
@@ -181,7 +191,7 @@ class XMPPHP_BOSH extends XMPPHP_XMPP {
 		public function saveSession() {
 			$_SESSION['XMPPHP_BOSH_RID'] = (string) $this->rid;
 			$_SESSION['XMPPHP_BOSH_SID'] = (string) $this->sid;
-			$_SESSION['XMPPHP_BOSH_authed'] = (boolean) $this->authed;
+			$_SESSION['XMPPHP_BOSH_authed'] = (bool) $this->authed;
 			$_SESSION['XMPPHP_BOSH_jid'] = (string) $this->jid;
 			$_SESSION['XMPPHP_BOSH_fulljid'] = (string) $this->fulljid;
 		}

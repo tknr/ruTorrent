@@ -34,7 +34,7 @@ theWebUI.rDirBrowser = class {
 		// 3. `id` of the containing option page
 		const stgId = this.btn.parents(".stg_con").attr("id");
 		// 4. add an hide tab event handler if the button is within an option page
-		if (!!stgId) {
+		if (stgId) {
 			theOptionsWindow.addHandler(`mnu_${stgId}`, "beforeHide", () => this.hide());
 		}
 		// move dir list frame along with the containing dialog window
@@ -141,6 +141,7 @@ theWebUI.rDirBrowser = class {
 					this.frame.find(".rmenuobj").remove();
 					this.frame.append(
 						$("<div>").addClass("rmenuobj").append(
+							$("<div>").addClass("rmenuitem").text("./"),
 							...res.directories.map(ele => $("<div>").addClass("rmenuitem").text(ele + "/")),
 							...(this.withFiles ? res.files : []).map(ele => $("<div>").addClass("rmenuitem").text(ele)),
 						),
@@ -148,7 +149,7 @@ theWebUI.rDirBrowser = class {
 					this.frame.find(".rmenuitem").on(
 						"click", (ev) => this.selectItem(ev)
 					).on(
-						"dblclick", (ev) => (ev.currentTarget.innerText.endsWith("/")) ? this.requestDir() : this.hide()
+						"dblclick", (ev) => (ev.currentTarget.innerText === "./") ? this.hide() : (ev.currentTarget.innerText.endsWith("/")) ? this.requestDir() : this.hide()
 					);
 				},
 				error: (res) => console.log(res),
@@ -159,7 +160,10 @@ theWebUI.rDirBrowser = class {
 	selectItem(ev) {
 		this.frame.find(".rmenuitem.active").removeClass("active");
 		$(ev.currentTarget).addClass("active");
-		this.edit.val(this.edit.data("cwd") + ev.target.innerText);
+		if (ev.target.innerText === "./")
+			this.edit.val(this.edit.data("cwd"));
+		else
+			this.edit.val(this.edit.data("cwd") + ev.target.innerText);
 	}
 
 	show() {

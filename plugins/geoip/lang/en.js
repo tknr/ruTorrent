@@ -5,11 +5,11 @@
  *
  * Initial Author: art.spb, December 2009.
  *
- * Author: 
+ * Author:
  */
 
  theUILang.peerComment		= "Add comment";
- theUILang.peerCommentLabel	= "Enter new comment for peer";
+ theUILang.peerCommentLabel	= "Enter a new comment for the peer";
  theUILang.commentName		= "Comment";
  theUILang.countryName		= "Country";
 

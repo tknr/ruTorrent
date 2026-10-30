@@ -5,7 +5,7 @@
  *
  * Initial Author: art.spb, December 2009.
  *
- * Author: 
+ * Author:
  */
 
  theUILang.peerComment		= "Adicionar comentário";
@@ -98,7 +98,7 @@
  theUILang.country[ "gg" ] = "Guernsey";
  theUILang.country[ "gh" ] = "Gana";
  theUILang.country[ "gi" ] = "Gibraltar";
- theUILang.country[ "gl" ] = "Groenlândia";
+ theUILang.country[ "gl" ] = "Gronelândia";
  theUILang.country[ "gm" ] = "Gâmbia";
  theUILang.country[ "gn" ] = "Guiné";
  theUILang.country[ "gp" ] = "Guadalupe";

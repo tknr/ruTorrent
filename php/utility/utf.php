@@ -1,14 +1,100 @@
 <?php
 
 class UTF
-{	
+{
+	// Strict UTF-8: the check of PCRE's u modifier, which json_encode() also
+	// applies. isInvalidUTF8() is looser: it lets through the byte 0x80 on its
+	// own, overlong forms, surrogates and code points above U+10FFFF.
+	public static function isValid($text)
+	{
+		return(is_string($text) && (preg_match('//u', $text) === 1));
+	}
+
+	// The length of the UTF-8 character at $offset, or 0 if none starts there.
+	private static function characterLength($text, $offset)
+	{
+		$first = $text[$offset];
+		if($first <= "\x7F") return(1);
+		if(($first >= "\xC2") && ($first <= "\xDF")) $length = 2;
+		else if(($first >= "\xE0") && ($first <= "\xEF")) $length = 3;
+		else if(($first >= "\xF0") && ($first <= "\xF4")) $length = 4;
+		else return(0);
+		// A byte past the end reads as '', which is below every bound.
+		$minimum = ($first === "\xE0") ? "\xA0" : (($first === "\xF0") ? "\x90" : "\x80");
+		$maximum = ($first === "\xED") ? "\x9F" : (($first === "\xF4") ? "\x8F" : "\xBF");
+		$second = $text[$offset + 1] ?? '';
+		if(($second < $minimum) || ($second > $maximum)) return(0);
+		for($part = 2; $part < $length; $part++)
+			if((($text[$offset + $part] ?? '') < "\x80") || ($text[$offset + $part] > "\xBF")) return(0);
+		return($length);
+	}
+
+	// Text for display. Valid UTF-8 comes back unchanged. Otherwise each byte
+	// that is not part of a character, and each control but tab, CR and LF,
+	// becomes \xNN, and a backslash is doubled. So a valid name that spells
+	// "\xFF" reads like a name holding the byte 0xFF: compare names by their
+	// bytes, never by this label.
+	public static function display($text)
+	{
+		$text = (string)$text;
+		if(self::isValid($text))
+			return($text);
+		$out = '';
+		for($offset = 0; isset($text[$offset]);)
+		{
+			$byte = $text[$offset];
+			$length = self::characterLength($text, $offset);
+			if(($length === 0) || (($byte < "\x20") && ($byte !== "\t") && ($byte !== "\r") && ($byte !== "\n")) || ($byte === "\x7F"))
+			{
+				$out .= sprintf('\\x%02X', ord($byte));
+				$offset++;
+			}
+			else if($byte === '\\')
+			{
+				$out .= '\\\\';
+				$offset++;
+			}
+			else
+				for($part = 0; $part < $length; $part++)
+					$out .= $text[$offset++];
+		}
+		return($out);
+	}
+
+	// What utf8_encode() returns, which PHP 8.2 deprecates: each byte read
+	// as ISO-8859-1.
+	public static function latin1ToUtf8($str)
+	{
+		return(preg_replace_callback('`[\x80-\xFF]`', function($m)
+		{
+			$c = ord($m[0]);
+			return(chr(0xC0 | ($c >> 6)).chr(0x80 | ($c & 0x3F)));
+		}, $str));
+	}
+
+	// What utf8_decode() returns, which PHP 8.2 deprecates: a character
+	// outside ISO-8859-1 becomes '?', and so does each malformed sequence,
+	// found and delimited the way utf8_decode() does because
+	// htmlspecialchars() uses the same decoder.
+	public static function utf8ToLatin1($str)
+	{
+		$valid = htmlspecialchars_decode(
+			htmlspecialchars($str, ENT_NOQUOTES | ENT_SUBSTITUTE, 'UTF-8'), ENT_NOQUOTES);
+		return(preg_replace_callback('`[^\x00-\x7F]`u', function($m)
+		{
+			$c = $m[0];
+			return(((strlen($c) == 2) && (ord($c[0]) <= 0xC3)) ?
+				chr(((ord($c[0]) & 0x1F) << 6) | (ord($c[1]) & 0x3F)) : '?');
+		}, $valid));
+	}
+
 	public static function isInvalidUTF8($str)
 	{
 		$len = strlen($str);
 		for($i = 0; $i < $len; $i++)
 		{
 			$c = ord($str[$i]);
-			if($c > 128) 
+			if($c > 128)
 			{
 				if(($c > 247)) return(true);
 				elseif($c > 239) $bytes = 4;
@@ -16,7 +102,7 @@ class UTF
 				elseif($c > 191) $bytes = 2;
 				else return(true);
 				if(($i + $bytes) > $len) return(true);
-				while ($bytes > 1) 
+				while ($bytes > 1)
 				{
 					$i++;
 					$b = ord($str[$i]);
@@ -51,10 +137,10 @@ class UTF
 			0x0448,0x0449,0x044A,0x044B,0x044C,0x044D,0x044E,0x044F
 		);
 		$and=0x3F;
-		for($i=0;$i<strlen($str);$i++) 
+		for($i=0;$i<strlen($str);$i++)
 		{
 			$octet=array();
-			if(ord($str[$i])<0x80) 
+			if(ord($str[$i])<0x80)
 				$strhex=ord($str[$i]);
 			else
 				$strhex=$recode[ord($str[$i])-128];
@@ -64,29 +150,29 @@ class UTF
 			{
 				$octet[0]=0xC0;
 				$octet[1]=0x80;
-			} 
-			elseif($strhex<0x10000) 
+			}
+			elseif($strhex<0x10000)
 			{
 				$octet[0]=0xE0;
 				$octet[1]=0x80;
 				$octet[2]=0x80;
-			} 
-			elseif($strhex<0x200000) 
+			}
+			elseif($strhex<0x200000)
 			{
 				$octet[0]=0xF0;
 				$octet[1]=0x80;
 				$octet[2]=0x80;
 				$octet[3]=0x80;
-			} 
-			elseif ($strhex<0x4000000) 
+			}
+			elseif ($strhex<0x4000000)
 			{
 				$octet[0]=0xF8;
 				$octet[1]=0x80;
 				$octet[2]=0x80;
 				$octet[3]=0x80;
 				$octet[4]=0x80;
-			} 
-			else 
+			}
+			else
 			{
 				$octet[0]=0xFC;
 				$octet[1]=0x80;
@@ -95,71 +181,16 @@ class UTF
 				$octet[4]=0x80;
 				$octet[5]=0x80;
 				}
-				for($j=(count($octet)-1);$j>=1;$j--) 
+				for($j=(count($octet)-1);$j>=1;$j--)
 			{
 				$octet[$j]=$octet[$j] + ($strhex & $and);
 				$strhex=$strhex>>6;
 			}
 			$octet[0]=$octet[0] + $strhex;
-			for($j=0;$j<count($octet);$j++) 
+			for($j=0;$j<count($octet);$j++)
 				$outstr.=chr($octet[$j]);
 		}
 		return($outstr);
-	}
-
-	private static function mix2utf($str, $inv = '_') 
-	{
-		$len = strlen($str);
-		for($i = 0; $i < $len; $i++)
-		{
-			$c = ord($str[$i]);
-			if($c > 128) 
-			{
-				$bytes = 0;
-				if(($c > 247)) $str[$i] = $inv;
-				elseif($c > 239) $bytes = 4;
-				elseif($c > 223) $bytes = 3;
-				elseif($c > 191) $bytes = 2;
-				else $str[$i] = $inv;
-				if($bytes)
-				{
-					if(($i + $bytes) > $len) $str[$i] = $inv;
-					else
-					{
-						$start = $i;
-						$cnt = $bytes;
-						while($bytes > 1) 
-						{
-							$i++;
-							$b = ord($str[$i]);
-							if($b < 128 || $b > 191) 
-							{
-								$str[$start] = $inv;
-								$i = $start;
-								break;
-							}
-							$bytes--;
-						}
-					}
-				}
-			}
-		}
-		return($str);
-	}
-
-	public static function utf8ize($mixed) 
-	{
-		if(is_array($mixed) || is_object($mixed)) 
-		{
-				foreach($mixed as $key => $value) 
-				{
-					$mixed[$key] = self::utf8ize($value);
-				}
-			} 
-			else 
-				if(is_string($mixed)) 
-					$mixed = self::mix2utf($mixed);
-		return($mixed);
 	}
 
 	private static function maybe_mb_convert_to_utf8($string) {

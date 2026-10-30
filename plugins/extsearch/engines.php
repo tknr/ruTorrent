@@ -25,8 +25,8 @@ class commonEngine
 	public function getNewEntry()
 	{
 		return( array(
-			"time"=>0, 
-			"cat"=>'', 
+			"time"=>0,
+			"cat"=>'',
 			"size"=>0,
 			"desc"=>'',
 			"name"=>'',
@@ -35,6 +35,33 @@ class commonEngine
 			"peers"=>0,
 			));
 	}
+	// The origin an engine whose tracker has no fixed domain searches, taken
+	// from the loginmgr account of the same name so that the search, the
+	// download links and the login use one host. '' when loginmgr is not
+	// installed, or while its setting for that account is not set or not
+	// usable.
+	protected function accountOrigin($name)
+	{
+		$file = dirname(__FILE__)."/../loginmgr/accounts/".$name.".php";
+		if(!is_file($file))
+			return('');
+		require_once(dirname(__FILE__)."/../loginmgr/accounts.php");
+		require_once($file);
+		$class = $name."Account";
+		$account = new $class();
+		return($account->url);
+	}
+
+	// The one entry a search returns when it has no origin to search: the
+	// setting to fill in, in place of results from a host nobody chose.
+	protected function unconfiguredOriginEntry($name,$setting,&$ret)
+	{
+		$item = $this->getNewEntry();
+		$item["name"] = $name.': set $'.$setting.' to the tracker\'s https origin'
+			.' in the loginmgr plugin configuration';
+		$ret[""] = $item;
+	}
+
 	public function makeClient($url)
 	{
 		global $HTTPTimeoutPerSite;
@@ -130,9 +157,8 @@ class commonEngine
 		if(function_exists('mb_convert_encoding'))
 		        $out = mb_convert_encoding($out, $encoding, 'UTF-8');
 		else
-		if(function_exists('utf8_decode'))
-		        $out = utf8_decode($out);
-		return($out);	
+		        $out = UTF::utf8ToLatin1($out);
+		return($out);
 	}
 	static public function toUTF($out,$encoding)
 	{
@@ -142,11 +168,8 @@ class commonEngine
 		if(function_exists('mb_convert_encoding'))
 		        $out = mb_convert_encoding($out, 'UTF-8', $encoding );
 		else
-		if(function_exists('utf8_encode'))
-		        $out = utf8_encode($out);
-		else
-		        $out = UTF::win2utf($out);
-		return($out);	
+		        $out = UTF::latin1ToUtf8($out);
+		return($out);
 	}
 	static public function fromJSON($str)
 	{
@@ -252,17 +275,17 @@ class engineManager
 						$this->engines[$name]["limit"] = intval($oldEngines[$name]["limit"]);
 					}
 
-					if(!rTorrentSettings::get()->isPluginRegistered('cookies') && 
-						$this->engines[$name]["enabled"] && 
+					if(!rTorrentSettings::get()->isPluginRegistered('cookies') &&
+						$this->engines[$name]["enabled"] &&
 						!empty($this->engines[$name]["cookies"]))
 						$this->engines[$name]["enabled"] = 0;
-					if(!rTorrentSettings::get()->isPluginRegistered('loginmgr') && 
-						$this->engines[$name]["enabled"] && 
+					if(!rTorrentSettings::get()->isPluginRegistered('loginmgr') &&
+						$this->engines[$name]["enabled"] &&
 						$this->engines[$name]["auth"])
 						$this->engines[$name]["enabled"] = 0;
 				}
-			} 
-			closedir($handle);		
+			}
+			closedir($handle);
 	        }
 		ksort($this->engines);
 		$this->store();
@@ -406,7 +429,7 @@ class engineManager
 			}
 		}
 		uasort($arr, array(__CLASS__,"sortBySeeds"));
-		$cnt = 0;		
+		$cnt = 0;
 		$history = self::loadHistory(true);
 
 		$ret = array( "eng"=>$eng, "cat"=>$cat, "data"=>array() );

@@ -3,6 +3,7 @@
 require_once( dirname(__FILE__).'/../_task/task.php' );
 require_once( dirname(__FILE__).'/../../php/Torrent.php' );
 require_once( dirname(__FILE__).'/../../php/rtorrent.php' );
+require_once( dirname(__FILE__).'/externals.php' );
 eval( FileUtil::getPluginConf( 'create' ) );
 
 class recentTrackers
@@ -148,7 +149,10 @@ if(isset($_REQUEST['cmd']))
 				$path_edit = trim($_REQUEST['path_edit']);
 				if(is_dir($path_edit))
 					$path_edit = FileUtil::addslash($path_edit);
-				if(rTorrentSettings::get()->correctDirectory($path_edit))
+				// What is hashed here is served once it is seeded, so it has to
+				// stay inside the top directory once links are followed.
+				if(rTorrentSettings::get()->correctDirectory($path_edit) &&
+					rTorrent::isInsideTopDirectory($path_edit))
 				{
 					$rt = recentTrackers::load();
 					$trackers = array();
@@ -178,7 +182,7 @@ if(isset($_REQUEST['cmd']))
 					if(isset($_REQUEST['piece_size']))
 						$piece_size = $_REQUEST['piece_size']*1024;
 					if(!$pathToCreatetorrent || ($pathToCreatetorrent==""))
-						$pathToCreatetorrent = $useExternal;
+						$pathToCreatetorrent = createExternalEXE($useExternal);
 					if($useExternal=="mktorrent")
 						$piece_size = log($piece_size,2);
 					if(isset($_REQUEST['hybrid']))

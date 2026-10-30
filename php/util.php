@@ -7,26 +7,28 @@ $rootPath = realpath(dirname(__FILE__)."/..");
 require_once( dirname(__FILE__).'/../conf/config.php' );
 
 // Automatically include only the used utility classes
-spl_autoload_register(function ($class) 
+spl_autoload_register(function ($class)
 {
 	// Remove namespaces from the classname string
 	// Important for compatibility with 3rd party plugins
 	$arr = explode('\\',$class);
 	$class = end($arr);
-	
+
+	// Every autoloader in the chain is offered every name, so most of what
+	// arrives here belongs to a plugin or to a later autoloader. Only a name
+	// this one can place is worth an include; the rest are passed over.
+	$file = dirname(__FILE__).'/utility/'. strtolower($class). '.php';
+	if(!is_file($file))
+		return;
+
 	// Suppress include warnings if the user disables al_diagnostic
 	// For compatibility with 3rd party plugins which use autoloaders
 	global $al_diagnostic;
 	if($al_diagnostic)
-		include_once 'utility/'. strtolower($class). '.php';
+		include_once $file;
 	else
-		@include_once 'utility/'. strtolower($class). '.php';
+		@include_once $file;
 });
-
-// Fixes quotations if php verison is less than 5.4
-// Only include these methods if applicable
-if(version_compare(phpversion(), '5.4', '<'))
-	require_once ( 'utility/phpversionfix.php');
 
 // Only allow "POST" or "GET" request methods
 // Exit script and send 405 if anther method is tried
@@ -63,7 +65,7 @@ if($conf)
 
 if(!isset($profileMask))
 	$profileMask = 0777;
-if(!isset($locale))	
+if(!isset($locale))
 	$locale = "UTF8";
 setlocale(LC_CTYPE, $locale, "UTF-8", "en_US.UTF-8", "en_US.UTF8");
 setlocale(LC_COLLATE, $locale, "UTF-8", "en_US.UTF-8", "en_US.UTF8");

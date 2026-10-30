@@ -2,9 +2,9 @@
  *
  * French language file.
  *
- * Author: 
+ * Author:
  */
 
- theUILang.typeToFilter		= "Type to filter...";
+ theUILang.typeToFilter		= "Tapez pour filtrer...";
 
 thePlugins.get("_getdir").langLoaded();

@@ -3,7 +3,7 @@
  *
  */
 
-// Drag & Drop object 
+// Drag & Drop object
 class DnD {
 	/**
 	 * Construct a drag-and-drop instance.
@@ -45,6 +45,8 @@ class DnD {
 		}
 		// disallow dnd on links
 		if (e.target.tagName === "A") return false;
+		// a secondary click is not the start of a drag
+		if (e.maybeSecondaryClick) return false;
 
 		if (self.options.onStart(e)) {
 			$(document).on("mousemove", self, self.run);
@@ -81,7 +83,7 @@ class DnD {
 	finish(e) {
 		$("body").css({cursor:""});
 		const self = e.data;
-		self.options.onFinish(e);
+		try { self.options.onFinish(e); } catch(err) { console.error("DnD onFinish error:", err); }
 		$(document).off("mousemove", self.run);
 		$(document).off("mouseup", self.finish);
 		return false;
@@ -148,7 +150,7 @@ var theDialogManager = {
 			var c = $(obj).offset();
 			return((obj.scrollHeight > obj.clientHeight) && (x>obj.clientWidth+c.left));
 		};
-		obj.on('mousedown', function(e) 
+		obj.on('mousedown', function(e)
 		{
 			if( (!browser.isOpera || !inScrollBarArea(e.target,e.clientX,e.clientY)) && !theDialogManager.modalState )
 				self.bringToTop(this.id);
@@ -297,7 +299,7 @@ var CMENU_SEP =	" 0";
 var CMENU_CHILD = " 1";
 var CMENU_SEL = " 2";
 
-var theContextMenu = 
+var theContextMenu =
 {
 	mouse: { x: 0, y: 0 },
 	noHide: false,
@@ -305,9 +307,19 @@ var theContextMenu =
 	init: function() {
 		var self = this;
 		$(document).on('mousemove', function(e) { self.mouse.x = e.clientX; self.mouse.y = e.clientY; } );
+		// A contextmenu event that arrives while the button is still down -- what
+		// ctrl with the primary button does on macOS -- opens the menu before the
+		// release. That release has to be read as the secondary click it is, or it
+		// hides the menu the same gesture has just opened. The flag is cleared on
+		// every mousedown, so it only ever describes the gesture under way.
+		var menuGesture = false;
+		$(document).on('mousedown', function() { menuGesture = false; });
+		$(document).on('contextmenu', function() { menuGesture = true; });
 		$(document).on('mouseup', function(e) {
 			const ele = $(e.target);
-			if (e.which === 3) {
+			const secondary = (e.which === 3) || menuGesture;
+			menuGesture = false;
+			if (secondary) {
 				if (!e.fromTextCtrl)
 					e.stopPropagation();
 			} else {
@@ -321,7 +333,7 @@ var theContextMenu =
 					if (ele.hasClass("menu-cmd") && self.noHide)
 						ele.toggleClass("sel");
 					else
-						window.setTimeout("theContextMenu.hide()", 50); 
+						window.setTimeout(() => theContextMenu.hide(), 50);
 				}
 			}
 		});
@@ -331,8 +343,8 @@ var theContextMenu =
 	get: function( label )
 	{
 	        var ret = null;
-		$("a",this.obj).each( function(ndx,val) 
-		{ 
+		$("a",this.obj).each( function(ndx,val)
+		{
 			if($(val).text()==label)
 			{
 				ret = $(val).parent();
@@ -341,21 +353,37 @@ var theContextMenu =
 		});
 		return(ret);
 	},
+	// The command of a menu entry is a function, called when the entry is
+	// picked. An entry carrying anything else is inert, so that the text an
+	// entry is built from -- a feed item's address, a label, a tracker name --
+	// cannot become something the browser runs.
+	setCommand: function( a, command )
+	{
+		if($type(command)=="function")
+			a.attr({href:"#"}).on('click', command);
+		else
+		{
+			if($type(command)=="string")
+				console.warn("Context menu command must be a function, not a string: "+command);
+			a.addClass("dis");
+		}
+		return(a);
+	},
 	add: function() {
 		var args = new Array();
 		$.each(arguments, function(ndx,val) { args.push(val); });
         	var aft = null;
-		if(($type(args[0]) == "object") && args[0].hasClass && args[0].hasClass("CMenu")) 
+		if(($type(args[0]) == "object") && args[0].hasClass && args[0].hasClass("CMenu"))
 		{
 			var o = args[0];
 			args.splice(0, 1);
 		}
-		else 
-			var o = this.obj;
-		if(($type(args[0]) == "object") && args[0].hasClass && args[0].hasClass("menuitem")) 
+		else
+			o = this.obj;
+		if(($type(args[0]) == "object") && args[0].hasClass && args[0].hasClass("menuitem"))
 		{
 			aft = args[0];
-			args.splice(0, 1);		
+			args.splice(0, 1);
 		}
 		var self = this;
 		$.each(args, function(ndx,val) {
@@ -371,42 +399,15 @@ var theContextMenu =
 					}
 					li.append(ul);
 				} else if(val[0] == CMENU_SEL) {
-					const a = $("<a>").addClass("sel menu-cmd").attr({href: "#"}).text(val[1]);
-					switch ($type(val[2])) {
-						case "string": {
-							a.on('click', () => eval(val[2]));
-							break;
-						}
-						case "function": {
-							a.on('click', val[2]);
-							break;
-						}
-						default: {
-							return;
-						}
-					}
 					li.append(
-						a.on('focus', (ev) => ev.target.blur()),
+						self.setCommand($("<a>").addClass("sel menu-cmd").text(val[1]), val[2])
+							.on('focus', (ev) => ev.target.blur()),
 					);
 				} else {
 					if ($type(val[0])) {
-						const a = $("<a>").addClass("menu-cmd").text(val[0]);
-						switch ($type(val[1])) {
-							case false: {
-								a.addClass("dis");
-								break;
-							}
-							case "string": {
-								a.attr({href:"#"}).on('click', () => eval(val[1]));
-								break;
-							}
-							case "function": {
-								a.attr({href:"#"}).on('click', val[1]);
-								break;
-							}
-						}
 						li.append(
-							a.on('focus', (ev) => ev.target.blur()),
+							self.setCommand($("<a>").addClass("menu-cmd").text(val[0]), val[1])
+								.on('focus', (ev) => ev.target.blur()),
 						);
 					}
 				}
@@ -449,16 +450,16 @@ var theContextMenu =
 			x = this.mouse.x;
 		if(y==null)
 			y = this.mouse.y;
-		if(x + obj.width() > $(window).width()) 
+		if(x + obj.width() > $(window).width())
 			x -= obj.width();
-		if(y + this.obj.height() > $(window).height()) 
+		if(y + this.obj.height() > $(window).height())
 			y -= obj.height();
 		if(y<0)
 			y = 0;
 		obj.css( { left: x, top: y, "z-index": ++theDialogManager.maxZ } );
 		obj.children("li").on({
-			mouseover: theContextMenu.openSubmenu,
-			mouseout: theContextMenu.closeSubmenu,
+			mouseenter: theContextMenu.openSubmenu,
+			mouseleave: theContextMenu.closeSubmenu,
 		});
 		obj.show(theDialogManager.divider, function() { obj.css( { overflow: "visible" } ); } );
 	},

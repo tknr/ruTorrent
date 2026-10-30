@@ -3,10 +3,10 @@
  *
  * Hungarian language file.
  *
- * Author: 
+ * Author:
  */
 
-theUILang.ratioRulesManager = "Szabálykezelő";
+theUILang.ratioRulesManager = "Arány szabálykezelő";
 theUILang.mnu_ratiorule    = "Arány szabályok";
 theUILang.ratAddRule       = "Hozzáadás";
 theUILang.ratDelRule       = "Törlés";

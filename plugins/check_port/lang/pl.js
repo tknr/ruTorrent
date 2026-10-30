@@ -8,10 +8,17 @@
 
  theUILang.checkWebsiteNotFound = "Wtyczka check_port: Wtyczka nie działa. Nieprawidłowa konfiguracja.";
  theUILang.checkPort		= "Sprawdź stan portu";
+ theUILang.checkingPort		= "Sprawdzanie stanu portu";
  theUILang.portStatus		= [
  				  "Stan portu nieznany",
  				  "Port zamknięty",
  				  "Port otwarty"
  				  ];
+ theUILang.notAvailable = "-";
+ theUILang.portNotConfigured = "Niedostępne na tym serwerze";
+
+ theUILang.forcePort		= "Wymuś określony port...";
+ theUILang.forcePortPrompt	= "Ustaw port nasłuchiwania (1-65535):";
+ theUILang.forcePortInvalid	= "Nieprawidłowy numer portu.";
 
 thePlugins.get("check_port").langLoaded();

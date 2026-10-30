@@ -1,36 +1,25 @@
 <?php
 
 require_once( 'which.php' );
+require_once( 'pluginflags.php' );
 require_once( "settings.php" );
 
 function pluginsSort($a, $b)
-{ 
+{
 	$lvl1 = (float) $a["info"]["plugin.runlevel"];
 	$lvl2 = (float) $b["info"]["plugin.runlevel"];
 	if($lvl1>$lvl2)
 		return(1);
-	if($lvl1<$lvl2)	
+	if($lvl1<$lvl2)
 		return(-1);
 	return( strcmp($a["name"],$b["name"]) );
 }
 
-function getFlag($permissions,$pname,$fname)
-{
-	$ret = true;
-	if(array_key_exists($pname,$permissions) &&
-		array_key_exists($fname,$permissions[$pname]))
-		$ret = $permissions[$pname][$fname];
-	else
-	if(array_key_exists("default",$permissions) &&
-		array_key_exists($fname,$permissions["default"]))
-		$ret = $permissions["default"][$fname];
-	return($ret);
-}
 
 function getPluginInfo( $name, $permissions )
 {
-        $info = array( 
-		'rtorrent.need'=>1, 
+        $info = array(
+		'rtorrent.need'=>1,
 		'rtorrent.remote'=>'ok',
 		'rtorrent.external.warning'=>array(),
 		'rtorrent.external.error'=>array(),
@@ -40,8 +29,8 @@ function getPluginInfo( $name, $permissions )
 		'rtorrent.version.readable'=>'0.8.2',
 		'plugin.may_be_shutdowned'=>1,
 		'plugin.may_be_launched'=>1,
-		'plugin.runlevel'=>10.0, 
-		'plugin.description'=>'', 
+		'plugin.runlevel'=>10.0,
+		'plugin.description'=>'',
 		'plugin.author'=>'unknown',
 		'plugin.dependencies'=>array(),
 		'php.version'=>0x50000,
@@ -62,7 +51,7 @@ function getPluginInfo( $name, $permissions )
 			if(count($fields)==2)
 			{
 				$value = addcslashes(trim($fields[1]),"\\\'\"\n\r\t");
-				$field = trim($fields[0]); 
+				$field = trim($fields[0]);
 				switch($field)
 				{
 					case "plugin.help":
@@ -224,7 +213,16 @@ $jResult .= "theWebUI.showFlags = ".$perms.";\n";
 $jResult .= "theURLs.XMLRPCMountPoint = '".$XMLRPCMountPoint."';\n";
 $jResult.="theWebUI.systemInfo = {};\ntheWebUI.systemInfo.php = { canHandleBigFiles : ".((PHP_INT_SIZE<=4) ? "false" : "true")." };\n";
 
-if($handle = opendir('../plugins')) 
+// Advice rather than a fault, so it goes to the log only, once per load.
+// PHP 7 has had no security fixes since 7.4 reached its end of life.
+if($do_diagnostic && (PHP_VERSION_ID < 80000))
+	$jResult.="log(theUILang.insecurePHPVersion+' (".PHP_VERSION.")');";
+
+// The first rTorrent release with every security fix published so far:
+// 0.16.27, as (major << 16) + (minor << 8) + patch, like iVersion.
+$rtorrentFirstSafeVersion = 0x101B;
+
+if($handle = opendir('../plugins'))
 {
 	ignore_user_abort(true);
 	set_time_limit(0);
@@ -232,7 +230,17 @@ if($handle = opendir('../plugins'))
 	// Check/init: $tempDirectory.
 	$tmp = FileUtil::getTempDirectory();
 	if(!is_dir($tmp) || !@file_exists($tmp.'.') || !is_readable($tmp) || !is_writable($tmp))
-		$jResult.="noty(theUILang.badTempPath+' (".$tempDirectory.")','error');";	
+		$jResult.="noty(theUILang.badTempPath+' (".$tempDirectory.")','error');";
+	else
+	{
+		// Sticky, and only sticky, is what keeps a shared temp directory safe:
+		// without it any user on the box may rename or delete a file another
+		// user left there. /tmp is 1777 and is what an install that configures
+		// nothing gets, so world-writable on its own would report every install.
+		$tmpPerms = @fileperms($tmp);
+		if(($tmpPerms!==false) && (($tmpPerms & 0002)!=0) && (($tmpPerms & 01000)==0))
+			$jResult.="noty(theUILang.worldWritableTempPath+' (".$tempDirectory.")','error');";
+	}
 
 	if(!function_exists('preg_match_all'))
 	{
@@ -254,9 +262,15 @@ if($handle = opendir('../plugins'))
 		        if($theSettings->idNotFound)
 				$jResult.="noty(theUILang.idNotFound,'error');";
 			$jResult.="theWebUI.systemInfo.rTorrent = { started: true, iVersion : ".$theSettings->iVersion.", version : '".
-				$theSettings->version."', libVersion : '".$theSettings->libVersion."', apiVersion : ".$theSettings->apiVersion." };\n";
+				$theSettings->version."', libVersion : '".$theSettings->libVersion."', apiVersion : ".$theSettings->apiVersion.
+				", socketAllocBudget : ".$theSettings->socketAllocBudget.
+				", socketHttpAllocMax : ".$theSettings->socketHttpAllocMax.
+				", socketFilesAllocMax : ".$theSettings->socketFilesAllocMax.
+				", socketFilesAllocMin : ".$theSettings->socketFilesAllocMin." };\n";
 	        	if($do_diagnostic)
 	        	{
+				if($theSettings->iVersion < $rtorrentFirstSafeVersion)
+					$jResult.="log(theUILang.vulnerableRTorrentVersion+' (".$theSettings->version.")');";
 	        	        global $phpUseGzip;
 	        	        $up = FileUtil::getUploadsPath();
 	        	        $st = FileUtil::getSettingsPath();
@@ -329,11 +343,11 @@ if($handle = opendir('../plugins'))
 			if($file != "." && $file != ".." && is_dir('../plugins/'.$file))
 			{
 				if(!array_key_exists($file,$userPermissions))
-					$userPermissions[$file] = true;
+					$userPermissions[$file] = (bool)getFlag($permissions,$file,"enabledByDefault");
 				$info = getPluginInfo( $file, $permissions );
-				if($info) 
+				if($info)
 				{
-					if(     $info["plugin.may_be_launched"] && 
+					if(     $info["plugin.may_be_launched"] &&
 						getFlag($permissions,$file,"enabled")=="user-defined")
 					{
 					        $info["perms"] |= $canBeLaunched;
@@ -373,9 +387,9 @@ if($handle = opendir('../plugins'))
 					        $disabled[$file] = $info;
 						continue;
 					}
-					if(count($info['web.external.error']) || 
+					if(count($info['web.external.error']) ||
 						count($info['web.external.warning']) ||
-						count($info['rtorrent.external.error']) || 
+						count($info['rtorrent.external.error']) ||
 						count($info['rtorrent.external.warning']))
 						eval( FileUtil::getPluginConf( $file ) );
 					foreach( $info['web.external.error'] as $external )
@@ -494,24 +508,40 @@ if($handle = opendir('../plugins'))
 					$names[] = $file;
 				}
 			}
-		} 
-		if($phpRequired)
+		}
+		// From PHP 8.5 a script run from the command line gets $argv whatever
+		// register_argc_argv says, and the directive defaults to 0.
+		if($phpRequired && PHP_VERSION_ID < 80500)
 		{
 			$val = strtoupper(ini_get("register_argc_argv"));
 			if( $val!=='' && $val!='ON' && $val!='1' && $val!='TRUE' )
 				$jResult.="noty(theUILang.phpParameterUnavailable,'error');";
 		}
+		foreach($disabled as $name=>$pInfo)
+			$init[] = array( "info" => $pInfo, "name" => $name, "disabled" => true );
 		usort($init,"pluginsSort");
 		foreach($init as $plugin)
 		{
 		        $jEnd = '';
 		        $pInfo = $plugin["info"];
 
-			$deps = array_diff( $pInfo["plugin.dependencies"], $names );
-			if(count($deps))
+			if(!isset($plugin["disabled"]))
 			{
-				$jResult.="noty('".$plugin["name"].": '+theUILang.dependenceError+' ".implode(",",$deps)."','error');";
-				$disabled[$plugin["name"]] = $pInfo;
+				$deps = array_diff( $pInfo["plugin.dependencies"], $names );
+				if(count($deps))
+				{
+					$jResult.="noty('".$plugin["name"].": '+theUILang.dependenceError+' ".implode(",",$deps)."','error');";
+					$plugin["disabled"] = true;
+				}
+			}
+			if(isset($plugin["disabled"]))
+			{
+				$jResult.="(function () { var plugin = new rPlugin( '".$plugin["name"]."',".$pInfo["plugin.version"].
+					",'".$pInfo["plugin.author"]."','".$pInfo["plugin.description"]."',".$pInfo["perms"].",'".$pInfo["plugin.help"]."' );\n";
+				$jResult.="plugin.disable(); ";
+				if($pInfo["perms"] & $disabledByUser)
+					$jResult.="plugin.unlaunch(); ";
+				$jResult.="\n})();";
 				continue;
 			}
 
@@ -536,15 +566,6 @@ if($handle = opendir('../plugins'))
 			$jResult.=$jEnd;
 			$jResult.="\n})();";
 		}
-		foreach($disabled as $name=>$pInfo)
-		{
-			$jResult.="(function () { var plugin = new rPlugin( '".$name."',".$pInfo["plugin.version"].
-				",'".$pInfo["plugin.author"]."','".$pInfo["plugin.description"]."',".$pInfo["perms"].",'".$pInfo["plugin.help"]."' );\n";
-			$jResult.="plugin.disable(); ";
-			if($pInfo["perms"] & $disabledByUser)
-				$jResult.="plugin.unlaunch(); ";
-			$jResult.="\n})();";
-		}
 		$jResult.=testRemoteRequests($remoteRequests);
 		$theSettings->store();
 		WhichInstance::save();
@@ -558,7 +579,7 @@ $cacheResults=(isset($cachedPluginLoading) && $cachedPluginLoading);
 global $pluginMinification;
 if (isset($pluginMinification) && $pluginMinification)
 {
-	$jResult = Minifier::minify($jResult);
+	$jResult = \JShrink\Minifier::minify($jResult);
 }
 
 CachedEcho::send($jResult,"application/javascript",$cacheResults);

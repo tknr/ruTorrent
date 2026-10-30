@@ -17,10 +17,10 @@ class rCloudflare
 	{
 		return( ($this->client->status == 503 || $this->client->status == 429) &&
 			(stripos( $this->client->get_header("Server"), "cloudflare" ) === 0) &&
-			$this->client->results 
+			$this->client->results
 //			&&
 //			(stripos( $this->client->results, "jschl_vc" ) !== false) &&
-//			(stripos( $this->client->results, "jschl_answer" ) !== false) 
+//			(stripos( $this->client->results, "jschl_answer" ) !== false)
 			);
 	}
 
@@ -54,7 +54,7 @@ class rCloudflare
 			}
 			$code = escapeshellarg(Utility::getExternal('python'))." -c ".
 				escapeshellarg("import cloudscraper\nimport json\ntokens, user_agent = cloudscraper.get_tokens({$url}{$proxies}{$recaptcha})\nprint(json.dumps([tokens,user_agent]))");
-			$data = `{$code}`;
+			$data = shell_exec($code);
 			if($data &&
 				($data = json_decode($data,true)) &&
 				is_array($data) &&

@@ -1,5 +1,6 @@
 <?php
 require_once( dirname(__FILE__)."/../../php/xmlrpc.php" );
+require_once( dirname(__FILE__)."/../../php/rtorrent.php" );
 require_once( dirname(__FILE__)."/../../php/cache.php");
 require_once( dirname(__FILE__)."/../../php/settings.php");
 require_once( dirname(__FILE__).'/../_task/task.php' );
@@ -52,13 +53,13 @@ class rUnpack
 				{
 					$this->filter = trim(rawurldecode($parts[1]));
 					if(@preg_match($this->filter, null) === false)
-						$this->filter = "/.*/";					
+						$this->filter = "/.*/";
 				}
 				else
 				if( $parts[0] == "unpack_path" )
 				{
 					$this->path = trim(rawurldecode($parts[1]));
-					if(($this->path != '') && !rTorrentSettings::get()->correctDirectory($this->path))	
+					if(($this->path != '') && !rTorrentSettings::get()->correctDirectory($this->path))
 						$this->path = '';
 				}
 			}
@@ -75,7 +76,7 @@ class rUnpack
 	protected static function log( $msg )
 	{
 		global $unpack_debug_enabled;
-		if( $unpack_debug_enabled ) 
+		if( $unpack_debug_enabled )
 		{
 			FileUtil::toLog($msg);
 		}
@@ -88,7 +89,7 @@ class rUnpack
 			self::log("Unpack: SoftLink operation enabled. Deleting " . $filePath);
 			$filesToDelete .= $filePath . ";";
 		}
-		else 
+		else
 		{
 			$stat = LFS::stat($filePath);
 			if($stat)
@@ -128,7 +129,7 @@ class rUnpack
 					{
 						$filePath = $fileName->getPathname();
 						$this->checkOneFile( $filePath, $filesToDelete );
-					}    
+					}
 				}
 				else
 				{
@@ -149,14 +150,35 @@ class rUnpack
 		self::log("Start unpack operation as task ".$task->id." with arguments ".
 			json_encode($commands,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE));
 		return( self::isDryRun() ? array
-		( 
-			"no"=>$task->id, 
-			"pid"=>0, 
-			"status"=>255, 
-			"log"=>array(), 
-			"params"=>array(), 
-			"errors"=>array( "Dry-run operation, no real task start" ) 
+		(
+			"no"=>$task->id,
+			"pid"=>0,
+			"status"=>255,
+			"log"=>array(),
+			"params"=>array(),
+			"errors"=>array( "Dry-run operation, no real task start" )
 		) : $task->start($commands, 0) );
+	}
+
+	// quotaspace is a third-party plugin: ruTorrent does not ship rquota.php, so
+	// a registration is not a promise that the file is there or that it declares
+	// rQuota. A quota that cannot be consulted is not a quota that was exceeded,
+	// so the unpack proceeds, as it does where the plugin was never added.
+	// class_exists() is asked not to autoload: rQuota is the plugin file's to
+	// declare, and the core autoloader would only go looking for it under
+	// php/utility/.
+	static protected function quotaAllows()
+	{
+		if(!rTorrentSettings::get()->isPluginRegistered('quotaspace'))
+			return(true);
+		$rquota = dirname(__FILE__)."/../quotaspace/rquota.php";
+		if(!is_readable($rquota))
+			return(true);
+		require_once( $rquota );
+		if(!class_exists('rQuota',false))
+			return(true);
+		$qt = rQuota::load();
+		return( $qt->check() ? true : false );
 	}
 
 	public function startSilentTask($basename,$downloadname,$label,$name,$hash)
@@ -165,23 +187,18 @@ class rUnpack
 		global $cleanupAutoTasks;
 		global $unpackToTemp;
 
-		if(rTorrentSettings::get()->isPluginRegistered('quotaspace'))
-		{
-			require_once( dirname(__FILE__)."/../quotaspace/rquota.php" );
-			$qt = rQuota::load();
-			if(!$qt->check())
-				return;
-		}
+		if(!self::quotaAllows())
+			return;
 
 		$pathToUnrar = Utility::getExternal("unrar");
 		$pathToUnzip = Utility::getExternal("unzip");
 		$zipPresent = false;
-		$rarPresent = false;		
+		$rarPresent = false;
 		$outPath = $this->path;
-		
-		if(($outPath!='') && !rTorrentSettings::get()->correctDirectory($outPath))	
+
+		if(($outPath!='') && !rTorrentSettings::get()->correctDirectory($outPath))
 			$outPath = '';
-		
+
 		self::log("[Auto] Check torrent [$name] at [$basename] for archives");
 
 		if(is_dir($basename))
@@ -190,14 +207,14 @@ class rUnpack
 			if($outPath=='')
 				$outPath = $basename;
 			$basename = FileUtil::addslash($basename);
-			
+
 			$filesToDelete = "";
 			$downloadname = FileUtil::addslash($downloadname);
 			$Directory = new RecursiveDirectoryIterator($basename);
 			$Iterator = new RecursiveIteratorIterator($Directory);
 			$rarRegex = new RegexIterator($Iterator, '/.*\.(rar|r\d\d|\d\d\d)$/si');
 			$zipRegex = new RegexIterator($Iterator, '/.*\.zip$/si');
-			
+
 			if(USE_UNRAR && (sizeof(iterator_to_array($rarRegex)) > 0))
 			{
 				$rarPresent = true;
@@ -240,6 +257,11 @@ class rUnpack
         			$outPath.=FileUtil::addslash($label);
 	        	if($this->addName && ($name!=''))
 				$outPath.=FileUtil::addslash($name);
+			if(!rTorrent::isInsideTopDirectory($outPath))
+			{
+				self::log("[Auto] Not unpacked: [$outPath] is outside the top directory");
+				return;
+			}
 			if($unpackToTemp)
 			{
 				$randTempDirectory = FileUtil::addslash( FileUtil::getTempFilename('unpack') );
@@ -257,18 +279,18 @@ class rUnpack
 				escapeshellarg($filesToDelete)." ".
 				escapeshellarg($randTempDirectory);
 			if($cleanupAutoTasks)
-				$commands[] = 'rm -r "${dir}"';	
+				$commands[] = 'rm -r "${dir}"';
 
 			self::log("[Auto] Unpack files from torrent [$name] at [$basename] to [$outPath]");
 
 			$task = new rTask( array
-			( 
+			(
 				'arg' => FileUtil::getFileName(FileUtil::delslash($basename)),
 				'requester'=>'unpack',
-				'name'=>'unpack', 
-				'hash'=>$hash, 
-				'dir'=>$outPath, 
-				'mode'=>null, 
+				'name'=>'unpack',
+				'hash'=>$hash,
+				'dir'=>$outPath,
+				'mode'=>null,
 				'no'=>null
 			) );
 			self::processTask( $task, $commands );
@@ -284,32 +306,27 @@ class rUnpack
 		global $rootPath;
 		$ret = array( "no"=>-1, "pid"=>0, "status"=>255, "log"=>array(), "errors"=>array("Unknown error.") );
 
-		if(rTorrentSettings::get()->isPluginRegistered('quotaspace'))
+		if(!self::quotaAllows())
 		{
-			require_once( dirname(__FILE__)."/../quotaspace/rquota.php" );
-			$qt = rQuota::load();
-			if(!$qt->check())
-			{
-				$ret["errors"] = array("Quota limitation was reached. Unpack failed.");
-				return($ret);
-			}
+			$ret["errors"] = array("Quota limitation was reached. Unpack failed.");
+			return($ret);
 		}
 
 		$taskArgs = array
-		( 
+		(
 			'requester'=>'unpack',
-			'name'=>'unpack', 
-			'hash'=>$hash, 
-			'dir'=>$outPath, 
-			'mode'=>$mode, 
+			'name'=>'unpack',
+			'hash'=>$hash,
+			'dir'=>$outPath,
+			'mode'=>$mode,
 			'no'=>$fileno
 		);
-		if(($outPath!='') && !rTorrentSettings::get()->correctDirectory($outPath))	
+		if(($outPath!='') && !rTorrentSettings::get()->correctDirectory($outPath))
 			$outPath = '';
 
 		if(!empty($mode))
 	        {
-			$req = new rXMLRPCRequest( 
+			$req = new rXMLRPCRequest(
 				new rXMLRPCCommand( "f.get_frozen_path", array($hash,intval($fileno)) ));
 			if($req->success())
 			{
@@ -326,6 +343,12 @@ class rUnpack
 
 				if($outPath=='')
 					$outPath = dirname($filename);
+				if(!rTorrent::isInsideTopDirectory($outPath))
+				{
+					self::log("[Manual] Not unpacked: [$outPath] is outside the top directory");
+					$ret["errors"] = array("The directory is outside the top directory. Unpack failed.");
+					return($ret);
+				}
 
 				$commands = array();
 				$arh = Utility::getExternal( ($mode == "zip") ? 'unzip' : 'unrar' );
@@ -363,7 +386,7 @@ class rUnpack
 						$basename = $req->val[1];
 				}
 				self::log("[Manual] Check torrent [$tname] at [$basename] for archives");
-				$req = new rXMLRPCRequest( 
+				$req = new rXMLRPCRequest(
 					new rXMLRPCCommand( "f.multicall", array($hash,"",getCmd("f.get_path=")) ));
 				if($req->success())
 				{
@@ -408,6 +431,12 @@ class rUnpack
 				        		$outPath.=FileUtil::addslash($label);
 				        	if($this->addName && ($tname!=''))
 				        		$outPath.=FileUtil::addslash($tname);
+						if(!rTorrent::isInsideTopDirectory($outPath))
+						{
+							self::log("[Manual] Not unpacked: [$outPath] is outside the top directory");
+							$ret["errors"] = array("The directory is outside the top directory. Unpack failed.");
+							return($ret);
+						}
 
 				        	$commands[] = escapeshellarg($rootPath.'/plugins/unpack/un'.$mode.$postfix.'.sh')." ".
 							escapeshellarg($arh)." ".
@@ -436,8 +465,8 @@ class rUnpack
 		global $rootPath;
 		if($this->enabled)
 		{
-			$cmd =  rTorrentSettings::get()->getOnFinishedCommand( array('unpack'.User::getUser(), 
-					getCmd('execute').'={'.Utility::getPHP().','.$rootPath.'/plugins/unpack/update.php,$'.getCmd('d.get_directory').'=,$'.getCmd('d.get_base_filename').'=,$'.getCmd('d.is_multi_file').
+			$cmd =  rTorrentSettings::get()->getOnFinishedCommand( array('unpack'.User::getUser(),
+					getCmd('execute.nothrow').'={sh,-c,\"$0\" \"$@\" </dev/null >/dev/null 2>&1 &,'.Utility::getPHP().','.$rootPath.'/plugins/unpack/update.php,$'.getCmd('d.get_directory').'=,$'.getCmd('d.get_base_filename').'=,$'.getCmd('d.is_multi_file').
 					'=,$'.getCmd('d.get_custom1').'=,$'.getCmd('d.get_name').'=,$'.getCmd('d.get_hash').'=,$'.getCmd('d.get_custom').'=x-dest,'.User::getUser().'}'));
 		}
 		else

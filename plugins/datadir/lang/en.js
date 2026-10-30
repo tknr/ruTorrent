@@ -3,13 +3,13 @@
  *
  * English language file.
  *
- * Author: 
+ * Author:
  */
 
  theUILang.DataDir		= "Save to";
  theUILang.DataDirMove		= "Move data files";
  theUILang.datadirDlgCaption	= "Torrent Data Directory";
  theUILang.datadirDirNotFound	= "DataDir plugin: Invalid directory";
- theUILang.datadirSetDirFail	= "DataDir plugin: Operation fail";
+ theUILang.datadirSetDirFail	= "DataDir plugin: Operation failed";
 
 thePlugins.get("datadir").langLoaded();

@@ -8,10 +8,17 @@
 
  theUILang.checkWebsiteNotFound = "Πρόσθετο Check_port: Το πρόσθετο δεν θα λειτουργήσει. Μη έγκυρη παραμετροποίηση";
  theUILang.checkPort		= "Έλεγχος κατάστασης θύρας";
+ theUILang.checkingPort		= "Ελέγχεται η κατάσταση της θύρας";
  theUILang.portStatus		= [
  				  "Η κατάσταση της θύρας είναι άγνωστη",
  				  "Η θύρα είναι κλειστή",
  				  "Η θύρα είναι ανοικτή"
  				  ];
+ theUILang.notAvailable = "-";
+ theUILang.portNotConfigured = "Not available on this server";
+
+ theUILang.forcePort		= "Επιβολή συγκεκριμένης θύρας...";
+ theUILang.forcePortPrompt	= "Ορισμός θύρας ακρόασης (1-65535):";
+ theUILang.forcePortInvalid	= "Μη έγκυρος αριθμός θύρας.";
 
 thePlugins.get("check_port").langLoaded();

@@ -42,6 +42,184 @@ function loadXML(action) {
 }
 
 describe("xmlrpc calls", () => {
+  function withRtorrentVersion(version, callback) {
+    const oldAliases = theRequestManager.aliases;
+    const oldVersion = theWebUI.systemInfo.rTorrent.iVersion;
+
+    theRequestManager.aliases = {};
+    theWebUI.systemInfo.rTorrent.iVersion = version;
+
+    try {
+      correctContent();
+      callback();
+    } finally {
+      theRequestManager.aliases = oldAliases;
+      theWebUI.systemInfo.rTorrent.iVersion = oldVersion;
+    }
+  }
+
+  it("maps rTorrent 0.16 commands without deprecated aliases", () => {
+    withRtorrentVersion(0x100e, () => {
+      expect(theRequestManager.map("execute")).toBe("execute");
+      expect(theRequestManager.map("schedule")).toBe("schedule");
+      expect(theRequestManager.map("schedule_remove")).toBe("schedule.remove");
+      expect(theRequestManager.map("ratio.min.set")).toBe(
+        "group.seeding.ratio.min.set"
+      );
+
+      const command = new rXMLRPCCommand("schedule");
+      expect(command.command).toBe("schedule");
+      expect(command.params[0]).toStrictEqual({ type: "string", value: "" });
+
+      // rtorrent 0.16's dispatcher parses the first param of any call as
+      // the target, so the ratio setters must send ('', value) — prm: 1
+      // makes rXMLRPCCommand prepend the empty target.
+      const ratioCommand = new rXMLRPCCommand("ratio.min.set");
+      ratioCommand.addParameter("i4", 100);
+      expect(ratioCommand.command).toBe("group.seeding.ratio.min.set");
+      expect(ratioCommand.params).toStrictEqual([
+        { type: "string", value: "" },
+        { type: "i4", value: 100 },
+      ]);
+    });
+  });
+
+  it("keeps rTorrent 0.10.2 aliases available on 0.16.0", () => {
+    withRtorrentVersion(0x1000, () => {
+      expect(theRequestManager.map("dht")).toBe("dht.mode.set");
+      expect(theRequestManager.map("connection_leech")).toBe(
+        "protocol.connection.leech.set"
+      );
+      expect(theRequestManager.map("ratio.min.set")).toBe(
+        "group.seeding.ratio.min.set"
+      );
+    });
+  });
+
+  it("maps rTorrent 0.16.16 commands to canonical names", () => {
+    withRtorrentVersion(0x1010, () => {
+      expect(theRequestManager.map("get_http_proxy")).toBe(
+        "network.proxy.http"
+      );
+      expect(theRequestManager.map("set_http_proxy")).toBe(
+        "network.proxy.http.set"
+      );
+      expect(theRequestManager.map("get_proxy_address")).toBe(
+        "network.proxy.global"
+      );
+      expect(theRequestManager.map("set_proxy_address")).toBe(
+        "network.proxy.global.set"
+      );
+      expect(theRequestManager.map("d.multicall")).toBe("d.multicall");
+      expect(theRequestManager.map("d.multicall2")).toBe("d.multicall");
+
+      const command = new rXMLRPCCommand("d.multicall");
+      expect(command.command).toBe("d.multicall");
+      expect(command.params[0]).toStrictEqual({ type: "string", value: "" });
+    });
+  });
+
+  it("switches port aliases at the rTorrent 0.16.18 boundary", () => {
+    withRtorrentVersion(0x1011, () => {
+      expect(theRequestManager.map("get_port_range")).toBe(
+        "network.port_range"
+      );
+      expect(theRequestManager.map("set_port_range")).toBe(
+        "network.port_range.set"
+      );
+      expect(theRequestManager.map("get_port_random")).toBe(
+        "network.port_random"
+      );
+      expect(theRequestManager.map("set_port_random")).toBe(
+        "network.port_random.set"
+      );
+      expect(theRequestManager.map("get_port_open")).toBe(
+        "network.port_open"
+      );
+      expect(theRequestManager.map("set_port_open")).toBe(
+        "network.port_open.set"
+      );
+      expect(theRequestManager.map("port_open")).toBe("network.port_open");
+    });
+
+    for (const version of [0x1012, 0x1013, 0x1015]) {
+      withRtorrentVersion(version, () => {
+        expect(theRequestManager.map("get_port_range")).toBe(
+          "network.listen.port.range"
+        );
+        expect(theRequestManager.map("set_port_range")).toBe(
+          "network.listen.port.range.set"
+        );
+        expect(theRequestManager.map("get_port_random")).toBe(
+          "network.listen.port.random"
+        );
+        expect(theRequestManager.map("set_port_random")).toBe(
+          "network.listen.port.random.set"
+        );
+        expect(theRequestManager.map("get_port_open")).toBe("cat");
+        expect(theRequestManager.map("set_port_open")).toBe("cat");
+        expect(theRequestManager.map("port_open")).toBe("cat");
+        expect(theRequestManager.map("get_max_open_sockets")).toBe(
+          "system.sockets.max_size"
+        );
+        expect(theRequestManager.map("set_max_open_files")).toBe(
+          "system.sockets.files.max_alloc.set"
+        );
+      });
+    }
+  });
+
+  it("loads rTorrent 0.10.2 aliases at the 0.10.2 boundary", () => {
+    // iVersion packs one version component per byte: 0.10.2 is 0x0a02.
+    // Daemons older than 0.10.2 must not get its aliases.
+    for (const version of [0x908, 0x0a01]) {
+      withRtorrentVersion(version, () => {
+        expect(theRequestManager.map("dht")).toBe("dht");
+        expect(theRequestManager.map("connection_seed")).toBe(
+          "connection_seed"
+        );
+      });
+    }
+
+    withRtorrentVersion(0x0a02, () => {
+      expect(theRequestManager.map("dht")).toBe("dht.mode.set");
+      expect(theRequestManager.map("connection_seed")).toBe(
+        "protocol.connection.seed.set"
+      );
+      expect(theRequestManager.map("ratio.min.set")).toBe(
+        "group2.seeding.ratio.min.set"
+      );
+    });
+  });
+
+  it("routes d.is_partially_done to a no-op below rTorrent 0.9.0", () => {
+    withRtorrentVersion(0x809, () => {
+      expect(theRequestManager.map("d.is_partially_done=")).toBe("cat=");
+    });
+    withRtorrentVersion(0x900, () => {
+      expect(theRequestManager.map("d.is_partially_done=")).toBe(
+        "d.is_partially_done="
+      );
+    });
+    withRtorrentVersion(0x1014, () => {
+      expect(theRequestManager.map("d.is_partially_done=")).toBe(
+        "d.is_partially_done="
+      );
+    });
+    withRtorrentVersion(0x1015, () => {
+      expect(theRequestManager.map("d.is_partially_done=")).toBe(
+        "d.is_partially_done="
+      );
+    });
+    // 0 is the sentinel php/getplugins.php emits while the daemon is
+    // unreachable. The alias covers it on purpose: cat is understood by every
+    // daemon generation, so an unknown version degrades to the no-op instead
+    // of risking a faulted multicall.
+    withRtorrentVersion(0, () => {
+      expect(theRequestManager.map("d.is_partially_done=")).toBe("cat=");
+    });
+  });
+
   it("should parse getprops response", () => {
     const stub = new rTorrentStub(`?action=getprops&hash=${h("A")}`);
     //console.log(stub.content);
@@ -160,5 +338,105 @@ describe("xmlrpc calls", () => {
       expect(ret.torrents[hash].label).toBe(label);
       expect(ret.torrents[hash].comment).toBe(comment);
     }
+  });
+
+  // The server diffs against a cached copy of the previous answer. When it has
+  // none -- first poll, or the cache was evicted or could not be written -- it
+  // sends the whole list and no deletions, and says so with "full".
+  function seedListState() {
+    const stub = new rTorrentStub("?list=1");
+    stub.getResponse(loadXML(stub.action));
+    return stub;
+  }
+
+  it("drops torrents a full list does not mention", () => {
+    const stub = seedListState();
+    expect(Object.keys(theRequestManager.torrents)).toHaveLength(4);
+
+    const kept = { [h("A")]: theRequestManager.torrents[h("A")] };
+    const ret = stub.listResponse({ t: kept, cid: 7, full: 1 });
+
+    expect(Object.keys(theRequestManager.torrents)).toEqual([h("A")]);
+    expect(Object.keys(ret.torrents)).toEqual([h("A")]);
+  });
+
+  it("keeps torrents a partial list does not mention", () => {
+    const stub = seedListState();
+    const changed = { [h("A")]: theRequestManager.torrents[h("A")] };
+
+    stub.listResponse({ t: changed, cid: 8 });
+
+    expect(Object.keys(theRequestManager.torrents).sort()).toEqual(
+      [h("A"), h("B"), h("C"), h("D")].sort()
+    );
+  });
+
+  it("reads the partially done flag from the list response", () => {
+    const stub = new rTorrentStub("?list=1");
+    const ret = stub.getResponse(loadXML(stub.action));
+    expect(ret.torrents[h("A")].partially_done).toBe(0);
+    // B is the fixture's partial seed: incomplete (done 500) yet every
+    // selected chunk on disk. Without one such torrent the flag could be
+    // derived from done alone and the suite would not notice.
+    expect(ret.torrents[h("B")].partially_done).toBe(1);
+    expect(ret.torrents[h("C")].partially_done).toBe(0);
+    expect(ret.torrents[h("D")].partially_done).toBe(1);
+  });
+});
+
+describe("visibilitychange handler", () => {
+  let hiddenDescriptor;
+
+  beforeEach(() => {
+    // Save original descriptor so we can restore it after each test
+    hiddenDescriptor = Object.getOwnPropertyDescriptor(
+      Document.prototype,
+      "hidden"
+    );
+  });
+
+  afterEach(() => {
+    // Restore original document.hidden behavior
+    delete document.hidden;
+    if (hiddenDescriptor) {
+      Object.defineProperty(Document.prototype, "hidden", hiddenDescriptor);
+    }
+    // Reset state
+    theWebUI.deltaTime = 0;
+    theWebUI.serverDeltaTime = 0;
+  });
+
+  it("should reset deltaTime and serverDeltaTime when tab becomes visible", () => {
+    // Simulate cached deltas from a previous Ajax_UpdateTime call
+    theWebUI.deltaTime = 5000;
+    theWebUI.serverDeltaTime = 3000;
+
+    // Mock document.hidden to return false (tab is now visible)
+    Object.defineProperty(document, "hidden", {
+      configurable: true,
+      get: () => false,
+    });
+
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    expect(theWebUI.deltaTime).toBe(0);
+    expect(theWebUI.serverDeltaTime).toBe(0);
+  });
+
+  it("should NOT reset deltas when tab becomes hidden", () => {
+    theWebUI.deltaTime = 5000;
+    theWebUI.serverDeltaTime = 3000;
+
+    // Mock document.hidden to return true (tab is now hidden)
+    Object.defineProperty(document, "hidden", {
+      configurable: true,
+      get: () => true,
+    });
+
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    // Values should remain unchanged
+    expect(theWebUI.deltaTime).toBe(5000);
+    expect(theWebUI.serverDeltaTime).toBe(3000);
   });
 });

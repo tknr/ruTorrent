@@ -36,7 +36,7 @@ plugin.onLangLoaded = function()
 plugin.updateThemeHint = function(theme)
 {
 	const dark = !['Blue', 'Excel', ''].includes(theme);
-	setThemeHint(dark);
+	if (typeof setThemeHint === "function") setThemeHint(dark);
 }
 plugin.updateThemeHint(theWebUI.theme);
 
@@ -54,7 +54,7 @@ theDialogManager.setHandler('stg','beforeShow',function()
 });
 
 plugin.setSettings = theWebUI.setSettings;
-theWebUI.setSettings = function() 
+theWebUI.setSettings = function()
 {
 	plugin.setSettings.call(this);
 	const themeVal = $($$("webui.theme")).val();

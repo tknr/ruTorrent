@@ -1,7 +1,7 @@
 plugin.loadLang();
 plugin.loadMainCSS();
 
-var thePeersCache = 
+var thePeersCache =
 {
 	MAX_SIZE: 1024,
 	ips: [],
@@ -109,7 +109,7 @@ rTorrentStub.prototype.getpeersResponse = function(xml)
 		});
 		if(content.length)
 		{
-			var AjaxReq = jQuery.ajax(
+			jQuery.ajax(
 			{
 				type: "POST",
 				contentType: "application/x-www-form-urlencoded",
@@ -137,6 +137,34 @@ rTorrentStub.prototype.getpeersResponse = function(xml)
 
 if(plugin.canChangeColumns())
 {
+	// The Country column stores the two-letter code and shows the localized
+	// name. A string column is sorted by the value it stores, so the code is
+	// mapped to that same name -- any City suffix kept -- before the sorter
+	// compares it, so the column sorts the way it reads.
+	plugin.countrySortValue = function(value)
+	{
+		if(value == null) {
+			return value;
+		}
+		value = "" + value;
+		var name = theUILang.country[value.substr(0,2)];
+		return name ? name + value.substr(2) : value;
+	};
+
+	plugin.installCountrySort = function(table)
+	{
+		table.oldGetSortFunc = table.getSortFunc;
+		table.getSortFunc = function(id, reverse, valMapping)
+		{
+			if(id !== "country") {
+				return this.oldGetSortFunc(id, reverse, valMapping);
+			}
+			return this.oldGetSortFunc(id, reverse, function(key) {
+				return plugin.countrySortValue(valMapping(key));
+			});
+		};
+	};
+
 	plugin.done = function()
 	{
 		if(plugin.allStuffLoaded)
@@ -144,25 +172,8 @@ if(plugin.canChangeColumns())
 			var table = theWebUI.getTable("prs");
 			table.renameColumnById("country",theUILang.countryName);
 			table.renameColumnById("comment",theUILang.commentName);
-			table.oldFilesSortAlphaNumeric = table.sortAlphaNumeric;
-			table.sortAlphaNumeric = function(x, y) 
-			{
-				if(this.sortId === "country")
-				{
-				        var newX = { key: x.key, v: x.v, e: x.e };
-			        	var newY = { key: y.key, v: y.v, e: y.e };
-
-					var countryName = theUILang.country[x.v.substr(0,2)];
-					if(countryName)
-						newX.v = countryName+x.v.substr(2);
-					countryName = theUILang.country[y.v.substr(0,2)];
-					if(countryName)
-						newY.v = countryName+y.v.substr(2);
-					return(this.oldFilesSortAlphaNumeric(newX,newY));
-				}
-				return(this.oldFilesSortAlphaNumeric(x,y));
-			}
-		}       	
+			plugin.installCountrySort(table);
+		}
 		else
 			setTimeout(arguments.callee,1000);
 	}
@@ -182,8 +193,8 @@ if(plugin.canChangeMenu() && plugin.retrieveComments)
 				if(el && selCount)
 				{
 					theContextMenu.add(el, [theUILang.peerComment+'...',
-						(this.isTorrentCommandEnabled('commentpeer',theWebUI.dID) && (selCount==1)) ? 
-							"theDialogManager.show('cadd')" : null]);
+						(this.isTorrentCommandEnabled('commentpeer',theWebUI.dID) && (selCount==1)) ?
+							() => theDialogManager.show('cadd') : null]);
 				}
 			}
 			return(true);
@@ -233,9 +244,9 @@ plugin.onLangLoaded = function() {
 		);
 		theDialogManager.setHandler('cadd','beforeShow',function()
 		{
-			var peer = theWebUI.peers[theWebUI.getTable("prs").getFirstSelected()];
-			plugin.ip = peer.ip;
-			$('#peerComment').val(peer.comment);
+			var table = theWebUI.getTable("prs"); var peerId = table.getFirstSelected();
+			plugin.ip = table.getAttr(peerId, "ip");
+			$('#peerComment').val(table.getValueById(peerId, 'comment') || '');
 		});
 	}
 }

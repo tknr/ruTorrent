@@ -15,6 +15,20 @@ function $type(obj)
 
 var browser = new browserDetect();
 
+// Two questions the UI asks separately.
+//
+// touchable: can this device deliver touch events? A laptop with a touchscreen
+// answers yes, and still has a mouse and a keyboard.
+//
+// touchPrimary: is touch the way this device is pointed at? That is what to ask
+// wherever the alternative is a hovering cursor or a physical keyboard, and the
+// touchscreen laptop answers no.
+$.extend($.support,
+{
+	touchable: ("ontouchstart" in window) || (navigator.maxTouchPoints > 0),
+	touchPrimary: window.matchMedia("(hover: none) and (pointer: coarse)").matches
+});
+
 $(document).ready(function()
 {
 	var i = document.createElement('p');
@@ -79,6 +93,7 @@ $.event.fix = function(e)
 {
 	e = $.event.inheritedfix(e);
 	e.fromTextCtrl = (e.target && e.target.tagName && (/^input|textarea|a$/i).test(e.target.tagName));
+	e.maybeSecondaryClick = browser.maybeSecondaryClick(e);
 	if(!e.metaKey)
 		e.metaKey = e.ctrlKey;
 	return(e);
@@ -87,15 +102,19 @@ $.fn.extend(
 {
 	mouseclick: function( handler )
 	{
-		var contextMenuPresent = ("oncontextmenu" in document.createElement("foo")) || browser.isFirefox || $.support.touchable;
+		var contextMenuPresent = ("oncontextmenu" in document.createElement("foo"));
 	        return( this.each( function()
 	        {
 	        	if($type(handler)=="function")
 	        	{
 				if(contextMenuPresent)
 				{
+					// A mousedown that may be a secondary click is not acted on
+					// until the gesture says which click it was.
+					var held = null;
 					$(this).on( "contextmenu", function(e)
 					{
+						held = null;
 						e.which = 3;
 						e.button = 2;
 						e.metaKey = false;	// for safari
@@ -104,8 +123,19 @@ $.fn.extend(
 					});
                                         $(this).on('mousedown', function(e)
 					{
-						if(e.which != 3)
+						held = null;
+						if(e.which == 3)
+							return;
+						if(!e.maybeSecondaryClick)
 							return(handler.apply(this,arguments));
+						held = { self: this, args: arguments };
+					});
+					$(this).on('mouseup', function(e)
+					{
+						var call = held;
+						held = null;
+						if(call && e.maybeSecondaryClick)
+							return(handler.apply(call.self,call.args));
 					});
 				}
 				else
@@ -151,7 +181,10 @@ $.fn.extend(
 			else
 			{
 				if(contextMenuPresent)
+				{
 					$(this).off( "contextmenu" );
+					$(this).off( "mouseup" );
+				}
 				else
 				if(browser.isOpera)
 					$(this).off( "mouseup" );
@@ -187,6 +220,7 @@ $.fn.extend(
 
 function addslashes(str)
 {
+	// eslint-disable-next-line no-control-regex -- intentional: escape NUL, LF and CR
 	return( (str + '').replace(/[\\"']/g, '\\$&').replace(/\u0000/g, '\\0').replace(/\u000A/g, '\\n').replace(/\u000D/g, '\\r') );
 }
 
@@ -216,10 +250,10 @@ function ir(val) {
  * @param {HTMLInputElement | HTMLSelectElement} obj The HTML element
  * to be linked to.
  * @param {boolean | string} _33 An additional option when linking.
- * 
+ *
  * (1) When linking to a checkbox, a falsey value will enable the linked
  * objects when the checkbox is checked on.
- * 
+ *
  * (2) When linking to a dropdown select, it should be one of the values
  * from the options, which will disable the linked elements when selected.
  * @param {string[]} lst An array of HTML `id`s of elements to be linked.
@@ -230,7 +264,7 @@ function linked(obj, _33, lst) {
 		var d = _33 ? obj.checked : !obj.checked;
 	else if (tn === "select") {
 		var v = obj.options[obj.selectedIndex].value;
-		var d = (v === _33) ? true : false;
+		d = (v === _33) ? true : false;
 	} else {
 		return;
 	}
@@ -242,21 +276,65 @@ function linked(obj, _33, lst) {
 
 function escapeHTML(str)
 {
-//	return( $("<div>").text(str).html() );
-	return( String(str).split('&').join('&amp;').split('<').join('&lt;').split('>').join('&gt;') );
+	if (str === null || str === undefined) return '';
+	return String(str)
+		.split('&').join('&amp;')
+		.split('<').join('&lt;')
+		.split('>').join('&gt;')
+		.split('"').join('&quot;')
+		.split("'").join('&#039;');
 }
+
+/**
+ * Converts HTTP and HTTPS URLs in tracker status messages to safe, clickable HTML links.
+ * Excludes trailing punctuation, brackets, quotes, and backslashes from the link.
+ *
+ * @param {string} text Raw tracker status message
+ * @returns {string} Safe HTML string with clickable links
+ */
+function getClickableTrackerStatus(text)
+{
+	if (!text) return '';
+	var sanitized = escapeHTML(text);
+	var linked = sanitized.replace(/https?:\/\/[^\s<>"']+/gi, function(match) {
+		var entityMatch = match.match(/&(?:quot|#039|#39|lt|gt);/i);
+		var truncated = entityMatch ? match.substring(0, entityMatch.index) : match;
+		var cleanUrl = truncated.replace(/[.,)!?:;\\\]}]+$/g, '');
+		var trailing = match.substring(cleanUrl.length);
+		return '<a href="' + cleanUrl + '" target="_blank" rel="noopener noreferrer">' + cleanUrl + '</a>' + trailing;
+	});
+	// A tracker hostname can resolve to both an A and an AAAA record, and
+	// libtorrent announces to one address family at a time. When the first
+	// family fails it stashes the reason, retries the same tracker over the
+	// other family, and if that fails too it reports both joined with ' /// '
+	// (TrackerHttp::receive_failed, src/tracker/tracker_http.cc) -- e.g.
+	// "Tracker: [Could not connect to server /// Could not resolve hostname]"
+	// is IPv4 and IPv6 answering differently about one tracker, not two
+	// trackers. There are only two families, so there are only ever two parts.
+	// Run together they read as a single garbled sentence, so each answer gets
+	// its own line. Done AFTER the linkification: a URL cannot contain a
+	// space, so this separator can never fall inside one of the links just
+	// built.
+	return linked.replace(/ \/\/\/ /g, '<br>');
+}
+
 
 /**
  * Confirm again before taking action.
  * @param {string} title Title of the dialog.
  * @param {string} content Hint of the action to be confirmed.
- * @param {Function | string} funcYesName Function to be executed if confirmed.
+ * @param {Function} funcYesName Function to be executed if confirmed. Anything
+ * else is not run, and the question is not asked.
  */
 function askYesNo(title, content, funcYesName) {
+	if ($type(funcYesName) !== "function") {
+		console.warn("Confirmation action must be a function, not a string: " + funcYesName);
+		return;
+	}
 	$("#yesnoDlg-header").text(title);
 	$("#yesnoDlg-content").text(content);
 	$("#yesnoOK").off('click').on('click', () => {
-		$type(funcYesName) === "function" ? funcYesName() : eval(funcYesName);
+		funcYesName();
 		theDialogManager.hide("yesnoDlg");
 		return false;
 	});
@@ -273,7 +351,7 @@ function cloneObject( srcObj )
 		{
 			newObject = new srcObj.constructor();
 			for( var property in srcObj )
-				if( srcObj.hasOwnProperty(property) || typeof( srcObj[property] ) === 'object' )
+				if( Object.prototype.hasOwnProperty.call(srcObj, property) || typeof( srcObj[property] ) === 'object' )
 					newObject[property]= cloneObject( srcObj[property] );
 			break;
        		}
@@ -342,7 +420,7 @@ var theConverter =
 		if((noRound==null) && (tm >= 2419200))
 			return "\u221e";
 //		var val = tm % (604800 * 52);
-		var val = tm;
+		var val = Math.max(0, tm);
 		var w = iv(val / 604800);
 		val = val % 604800;
 		var d = iv(val / 86400);
@@ -462,6 +540,70 @@ var theConverter =
 	}
 };
 
+var theNormalizer = {
+	encloses: ['[]', '{}', '()'],
+	getLabel(s) {
+		let res;
+		if (s !== null) {
+			for (const enclose of this.encloses) {
+				const o = enclose.substr(0, 1);
+				const c = enclose.substr(1, 1);
+				const re = new RegExp(`^\\${o}(.*?)\\${c}`, 'i');
+				const matches = re.exec(s);
+				if (matches) {
+					res = [matches[1], s.substr(matches[0].length)];
+					break;
+				}
+			}
+		}
+		return res;
+	},
+	clean(s, sortable = true) {
+		if (s !== null && s.length) {
+			if (sortable) {
+				// replace dot, underscore, and dash with whitespace
+				// replace multiple whitespace with single whitespace
+				s = s
+					.replace(/(\.|_|-)/g, ' ')
+					.replace(/\s{2,}/g, ' ');
+			} else {
+				s = s
+					.replace(/^(\.|_|-)/g, ' ')
+					.replace(/(\.|_|-)$/g, ' ');
+			}
+			s = s.trim();
+		}
+		return s;
+	},
+	normalize(s, sortable = true) {
+		if (s !== null) {
+			// get label
+			const label = this.getLabel(s);
+			if (label) {
+				s = label[1];
+			}
+			s = this.clean(s, sortable);
+			if (sortable) {
+				// ignore 'the' in the beginning text
+				if (s.length && s.toLowerCase().substr(0, 3) === 'the') {
+					s = s
+						.substr(3)
+						.trim();
+				}
+			}
+			// append label if necessary
+			if (s.length && label) {
+				s += ` \`${label[0]}\``;
+			}
+			// treat label as string
+			if (s.length === 0 && label) {
+				s = label[0];
+			}
+		}
+		return s;
+	}
+}
+
 var theFormatter =
 {
 	torrents: function(table,arr)
@@ -473,6 +615,11 @@ var theFormatter =
 			else
    			switch(iv(i))
 			{
+				case 0:
+					if (theWebUI.settings["webui.normalize_torrent_name"]) {
+						arr[i] = theNormalizer.normalize(arr[i], false);
+					}
+					break;
 				case 3:
 					arr[i] = (arr[i] / 10) + "%";
 					break;
@@ -496,7 +643,7 @@ var theFormatter =
 					arr[i] = theFormatter.tPriority(arr[i]);
 					break;
 				case 14:
-					arr[i] = theConverter.date(iv(arr[i])+theWebUI.deltaTime/1000);
+					arr[i] = theConverter.date(iv(arr[i]));
 					break;
 			}
 		}
@@ -717,7 +864,7 @@ var theSearchEngines =
 	{
 		const q = $("#query").val();
 		if(theSearchEngines.current >= 0)
-			window.open(theSearchEngines.sites[theSearchEngines.current].url + encodeURIComponent(q), "_blank");
+			openInNewTab(theSearchEngines.sites[theSearchEngines.current].url + encodeURIComponent(q));
 		else
 			theWebUI.setTeg(q);
 	},
@@ -740,15 +887,15 @@ var theSearchEngines =
 				theContextMenu.add([CMENU_SEP]);
 			else
 			if(theSearchEngines.current==ndx)
-				theContextMenu.add([CMENU_SEL, val.name, "theSearchEngines.set("+ndx+")"]);
+				theContextMenu.add([CMENU_SEL, val.name, () => theSearchEngines.set(ndx)]);
 			else
-				theContextMenu.add([val.name, "theSearchEngines.set("+ndx+")"]);
+				theContextMenu.add([val.name, () => theSearchEngines.set(ndx)]);
 		});
 		theContextMenu.add([CMENU_SEP]);
 		if(theSearchEngines.current==-1)
-			theContextMenu.add([CMENU_SEL, theUILang.innerSearch, "theSearchEngines.set(-1)"]);
+			theContextMenu.add([CMENU_SEL, theUILang.innerSearch, () => theSearchEngines.set(-1)]);
 		else
-			theContextMenu.add([theUILang.innerSearch, "theSearchEngines.set(-1)"]);
+			theContextMenu.add([theUILang.innerSearch, () => theSearchEngines.set(-1)]);
 		var offs = $("#search").offset();
 		theContextMenu.show(offs.left-5,offs.top+5+$("#search").height());
         }
@@ -861,20 +1008,6 @@ function log(text,noTime,divClass,force) {
 	}
 }
 
-function logHTML(text,divClass,force)
-{
-	var obj = $("#lcont");
-	if(!divClass)
-		divClass = 'std';
-	if(obj.length)
-	{
-		obj.append( $("<div>").addClass(divClass).html(text).show() );
-		obj[0].scrollTop = obj[0].scrollHeight;
-		if(iv(theWebUI.settings["webui.log_autoswitch"]) || force)
-			theTabs.show("lcont");
-	}
-}
-
 function noty(msg, status, noTime) {
 	if ($.noty) {
 		$.noty({
@@ -885,6 +1018,55 @@ function noty(msg, status, noTime) {
 	}
 	const force = iv(theWebUI.settings["webui.log_autoswitch"]) && !$.noty;
 	log(msg, noTime, "std", force);
+}
+
+// An add-torrent upload posts into a hidden frame; this reads what came back.
+// Null means the frame still holds the blank page it was inserted with, which
+// loads before the upload finishes. A failed request leaves the browser's own
+// error page there, and that page is cross-origin: reading it throws, so the
+// answer is empty.
+function uploadFrameAnswer(frame) {
+	var d = null;
+	try {
+		d = frame.contentDocument || frame.contentWindow.document;
+	} catch(e) {}
+	if(d && (d.location.href == "about:blank"))
+		return(null);
+	return((d && d.body) ? (d.body.textContent || d.body.innerText || "") : "");
+}
+
+// php/addtorrent.php answers an upload with a script of noty(text, kind)
+// calls, one per item. Run them against a local noty that collects the pairs
+// rather than reading the text out with a pattern: a batch writes several
+// calls, and the message lookup is spelled either as a dotted key or as
+// theUILang["addTorrent"+"<status>"], depending on the server's version. The
+// server writes every name and kind as an escaped JSON literal, so they stay
+// data; the caller renders them through noty() or the mobile plugin's
+// showAlert(), and both escape.
+// An answer with no call at all is a refusal or a failure -- the origin
+// check's 403, the web server's 413 or 5xx page, a lost connection -- and
+// becomes one error, so an upload never ends without a message.
+function uploadResults(answer) {
+	var results = [];
+	var collect = function(text, kind) {
+		results.push({text: String(text), kind: String(kind)});
+	};
+	// Only lines that start a call run: the renderer writes its calls on one
+	// line, and text printed around them, such as a PHP notice, is not part
+	// of the answer
+	String(answer).split("\n").forEach(function(line) {
+		line = line.trim();
+		if(line.indexOf("noty(") === 0) {
+			try {
+				(new Function("noty", "theUILang", line))(collect, theUILang);
+			} catch(e) {
+				console.error("unreadable add-torrent result:", e);
+			}
+		}
+	});
+	if(!results.length)
+		results.push({text: theUILang.addTorrentFailed, kind: "error"});
+	return(results);
 }
 
 function fallbackCopyToClipboard(text)
@@ -952,7 +1134,7 @@ rDirectory.prototype.addFile = function(aData,no)
 		}
 		else
 		{
-			var sId = "_d_"+name;
+			sId = "_d_"+name;
 			if(!this.dirs[file.path][sId])
 				this.dirs[file.path][sId] = { data: { name: file.name, size: 0, done: 0, percent: 0.0, priority: -1, prioritize: -1 }, icon: "Icon_Dir", link: name };
 		}
@@ -1009,16 +1191,21 @@ rDirectory.prototype.updateDirs = function(name)
 	return(allStat);
 }
 
+// A caller can hold an id from a listing that is no longer the current one --
+// a selection that survived a directory change, an event on a row still in the
+// DOM. Answer for what is there rather than throwing.
 rDirectory.prototype.getEntry = function(k)
 {
 	var entry = this.dirs[this.current][k];
+	if(!entry)
+		return(null);
 	return((entry.data.name=="..") ? null : entry.data);
 }
 
 rDirectory.prototype.isDirectory = function(k)
 {
 	var entry = this.dirs[this.current][k];
-	return(entry.link!=null);
+	return(entry ? (entry.link!=null) : false);
 }
 
 rDirectory.prototype.getFilesIds = function(arr,current,k,prt,property)
@@ -1090,7 +1277,7 @@ var theBTClientVersion =
 	},
 	shLikeClients:
 	{
-		"A" : "ABC", "O" : "Osprey ", "Q" : "BTQueue", "R" : "Tribler", "S" : "Shad0w", 
+		"A" : "ABC", "O" : "Osprey ", "Q" : "BTQueue", "R" : "Tribler", "S" : "Shad0w",
 		"T" : "BitTornado", "U" : "UPnP NAT Bit Torrent"
 	},
 	get: function( origStr )
@@ -1213,7 +1400,7 @@ var theBTClientVersion =
 						ret = cli+" "+str.charAt(3)+"."+str.charAt(4);
 						break;
 					default:
-						var ch = str.charAt(6);
+						ch = str.charAt(6);
 						ret = cli+" "+str.charAt(3)+"."+parseInt(str.substr(4,2),10);
 						if((ch=='Z') || (ch=='X'))
 							ret+='+';
@@ -1241,7 +1428,7 @@ var theBTClientVersion =
 		}
 		if(!ret)
 		{
-			if(str.match(/^[MQ]\d-\d[\-\d][\-\d][\-\d]-/))
+			if(str.match(/^[MQ]\d-\d[-\d][-\d][-\d]-/))
 			{
 				ret = (str.charAt(0)=='Q') ? "Queen Bee " : "BitTorrent ";
 				if(str.charAt(4) == '-')
@@ -1376,9 +1563,9 @@ var theBTClientVersion =
 		}
 		if(!ret)
 		{
-			if(str.match(/^[A-Z]([A-Z0-9\-\.]{1,5})/i))
+			if(str.match(/^[A-Z]([A-Z0-9\-.]{1,5})/i))
 			{
-				var cli = this.shLikeClients[str.charAt(0)];
+				cli = this.shLikeClients[str.charAt(0)];
 				if(cli)
 					ret = cli+" "+shChar(str.charAt(1))+"."+shChar(str.charAt(2))+"."+shChar(str.charAt(3));
 			}
@@ -1428,7 +1615,7 @@ function RGBackground( selector )
 		var cs;
                 var rule = getCSSRule(selector);
 		if(rule)
-			var cs = rule.style.backgroundColor;
+			cs = rule.style.backgroundColor;
 		else
 			cs = selector;
 		if(cs.charAt(0) == '#')
@@ -1520,6 +1707,32 @@ function getCRC( str, crc )
 	return(crc);
 }
 
+/**
+ * Split plain text into DOM nodes, with every http(s) run turned into a link.
+ *
+ * The text is never parsed as markup: non-url runs become text nodes and the
+ * anchors are built attribute by attribute, so nothing the text contains can
+ * become an element or an attribute. The pattern matches only http and https,
+ * which is the scheme allowlist -- no other scheme can reach an href here.
+ */
+function linkifyToNodes(text)
+{
+	var nodes = [], pattern = /https?:\/\/[^\s<>"']+/g, last = 0, match;
+	text = (text === null || text === undefined) ? '' : String(text);
+	while((match = pattern.exec(text)) !== null)
+	{
+		if(match.index > last)
+			nodes.push(document.createTextNode(text.substring(last,match.index)));
+		nodes.push($("<a>")
+			.attr({ href: match[0], target: "_blank", rel: "noopener noreferrer" })
+			.text(match[0])[0]);
+		last = pattern.lastIndex;
+	}
+	if(last < text.length)
+		nodes.push(document.createTextNode(text.substring(last)));
+	return(nodes);
+}
+
 function strip_tags(input, allowed)
 {
 	allowed = (((allowed || '') + '')
@@ -1532,6 +1745,94 @@ function strip_tags(input, allowed)
 	{
 		return allowed.indexOf('<' + $1.toLowerCase() + '>') > -1 ? $0 : '';
     	});
+}
+
+/**
+ * Whether rtorrent will accept an open files / HTTP connections pair.
+ *
+ * The socket manager hands the configurable categories a fixed budget and
+ * refuses the whole write when a recompute would exceed it, so the pair has to
+ * be checked together rather than field by field.
+ *
+ * @param {number} budget what the two fields may total, 0 when rtorrent does not report it
+ * @param {number} files requested maximum number of open files
+ * @param {number} http requested maximum number of open HTTP connections
+ * @returns {boolean} true when the pair fits, or when there is no budget to check against
+ */
+function socketAllocationFits(budget, files, http)
+{
+	if(!iv(budget))
+		return true;
+	return((iv(files) + iv(http)) <= iv(budget));
+}
+
+/**
+ * Decide whether an address that came from a remote source may be opened.
+ *
+ * javascript: and data: addresses run in this origin, so an address taken from
+ * a feed, a search result or a saved look-at template cannot be handed to
+ * window.open() as it stands. Parsing it the way the browser will and then
+ * allowing only the schemes those sources legitimately use refuses both, along
+ * with every scheme that addresses something other than a web resource.
+ *
+ * @param {*} url the address to check
+ * @returns {boolean} true when it is one of the allowed schemes
+ */
+function isExternalURL(url)
+{
+	// An empty or blank string resolves to the page itself, which is not an
+	// external address at all.
+	if((typeof url !== "string") || (url.trim() === ""))
+		return(false);
+	try {
+		// Resolved against the page, which is what window.open() would do.
+		return(["http:", "https:", "ftp:", "ftps:", "magnet:"]
+			.indexOf(new URL(url, document.baseURI).protocol) >= 0);
+	} catch(e) {
+		return(false);
+	}
+}
+
+/**
+ * Open an address in a new tab that holds no handle back to this one.
+ *
+ * Without "noopener" the page that opens keeps window.opener, and a window
+ * handle carries the right to navigate the window it names whatever origin
+ * holds it. So a feed item, a search destination or an address lookup could
+ * send the tab ruTorrent is logged in to wherever it liked, with nothing shown
+ * to the user but a second tab opening. The feature is what severs that; a
+ * browser too old to know it hands back a window instead of null, and the
+ * handle is cleared on that by hand.
+ *
+ * @param {string} url the address to open
+ * @returns {Window|null} whatever window.open() gave back
+ */
+function openInNewTab(url)
+{
+	const opened = window.open(url, "_blank", "noopener");
+	if(opened)
+	{
+		try { opened.opener = null; } catch(e) {}
+	}
+	return(opened);
+}
+
+/**
+ * Open an address that came from a remote source in a new tab, if it is one
+ * this may open at all.
+ *
+ * The string is handed to window.open() exactly as given rather than in its
+ * parsed form, so nothing about the address is rewritten on the way.
+ *
+ * @param {*} url the address to open
+ * @returns {boolean} true when a tab was asked for, false when it was refused
+ */
+function openExternalURL(url)
+{
+	if(!isExternalURL(url))
+		return(false);
+	openInNewTab(url);
+	return(true);
 }
 
 if (!window.requestIdleCallback) {

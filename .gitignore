@@ -62,3 +62,8 @@ php/share/users/*
 
 # MacOS
 .DS_Store
+
+##
+conf/config.php
+plugins/_cloudflare/conf.php
+

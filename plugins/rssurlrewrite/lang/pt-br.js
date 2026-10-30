@@ -3,12 +3,12 @@
  *
  * Portuguese (Brazil) language file.
  *
- * Author: 
+ * Author:
  */
 
  theUILang.rssNewRule		= "Nova regra";
  theUILang.mnu_rssurlrewrite	= "Substituição de URL no RSS";
- theUILang.rssRulesManager	= "Gerenciador de Regras";
+ theUILang.rssRulesManager	= "Gerenciador de Regras RSS";
  theUILang.rssAddRule		= "Adicionar";
  theUILang.rssDelRule		= "Excluir";
  theUILang.rssCheckRule		= "?";

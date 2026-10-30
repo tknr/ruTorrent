@@ -7,10 +7,10 @@
 		require_once( dirname(__FILE__).'/../../php/xmlrpc.php' );
 		require_once( 'stat.php' );
 		eval(FileUtil::getPluginConf('trafic'));
-		
+
 		$req = new rXMLRPCRequest( array(
 			new rXMLRPCCommand("get_up_total"),
-			new rXMLRPCCommand("get_down_total"), 
+			new rXMLRPCCommand("get_down_total"),
 			new rXMLRPCCommand("d.multicall", array("main",getCmd("d.get_hash="),getCmd("d.get_up_total="),getCmd("d.get_down_total=")))));
 		$req->setParseByTypes();
 		if($req->run() && !$req->fault)
@@ -20,8 +20,8 @@
 			$wasTorrents = array();
 			if($file=@fopen($dir.'last.csv',"r"))
 			{
-				$was = fgetcsv($file,100);
-				while(($data = fgetcsv($file, 1000)) !== false)
+				$was = fgetcsv($file, 100, ",", "\"", "");
+				while(($data = fgetcsv($file, 1000, ",", "\"", "")) !== false)
 					$wasTorrents[$data[0]] = array_slice($data,1);
 				fclose($file);
 			}
@@ -37,16 +37,16 @@
 			$randName = FileUtil::getTempFilename('trafic');
 			if($file=@fopen($randName,"w"))
 			{
-				if( ($ok = fputcsv($file,$now))!==false )
+				if( ($ok = fputcsv($file, $now, ",", "\"", ""))!==false )
 				{
 					foreach($nowTorrents as $key=>$data)
 					{
 						$tmp = $data;
 						array_unshift($tmp, $key);
-						if( ($ok = fputcsv($file,$tmp))===false )
+						if( ($ok = fputcsv($file, $tmp, ",", "\"", ""))===false )
 							break;
 					}
-				}					
+				}
 				if($ok !== false)
 				{
 					if( fclose($file) !== false )
@@ -92,7 +92,7 @@
 				foreach($needTorrents as $key=>$data)
 				{
 				        $req = new rXMLRPCRequest( array(
-						new rXMLRPCCommand("t.multicall", 
+						new rXMLRPCCommand("t.multicall",
 							array($key,"",getCmd("t.is_enabled="),getCmd("t.get_type="),getCmd("t.get_group="),getCmd("t.get_url=")))));
 					$req->setParseByTypes();
 					if($req->run() && !$req->fault)

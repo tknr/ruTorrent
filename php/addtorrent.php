@@ -4,17 +4,57 @@ require_once( 'Snoopy.class.inc');
 require_once( 'rtorrent.php' );
 set_time_limit(0);
 
+/**
+ * Encode a value for use as a literal in the script this page serves.
+ *
+ * The result of this page is evaluated by the client (js/content.js), so
+ * every reflected value has to be a complete literal that no input can end.
+ * The HEX flags also keep <, >, & and both quote characters out of the bytes,
+ * so the response cannot be turned into markup by asking for it directly.
+ *
+ * A unix filename is a string of bytes and need not be valid UTF-8, and it
+ * reaches here as name[]. json_encode() answers false for bytes it cannot
+ * encode, which concatenates as nothing at all and leaves the call with an
+ * argument missing rather than an argument that is a literal. Callers project
+ * filesystem names before this final JSON guard, which always yields a literal.
+ */
+function addtorrent_literal($value)
+{
+	$literal = json_encode(strval($value),
+		JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_SLASHES|
+		JSON_INVALID_UTF8_SUBSTITUTE);
+	return($literal===false ? '""' : $literal);
+}
+
+// The result of one load: the hash it returned is a duplicate when it was
+// loaded before this request, or by an earlier item of it. A load refused
+// over its directory says so, so the user knows what to change.
+function addtorrent_status($hash, &$loaded)
+{
+	if($hash===false)
+		return(rTorrent::refusedDirectory() ? "FailedDirectory" : "Failed");
+	$hash = strtoupper($hash);
+	if(isset($loaded[$hash]))
+		return("Duplicate");
+	$loaded[$hash] = true;
+	return("Success");
+}
+
 if(isset($_REQUEST['result']))
 {
+	$results = is_array($_REQUEST['result']) ? array_values($_REQUEST['result']) : array($_REQUEST['result']);
 	if(isset($_REQUEST['json']))
-		CachedEcho::send( '{ "result" : "'.$_REQUEST['result'][0].'" }',"application/json");
+		CachedEcho::send( '{ "result" : '.addtorrent_literal(isset($results[0]) ? $results[0] : '').' }',
+			"application/json");
 	else
 	{
+		$names = (isset($_REQUEST['name']) && is_array($_REQUEST['name']))
+			? array_values($_REQUEST['name']) : array();
 		$js = '';
-		foreach( $_REQUEST['result'] as $ndx=>$result )
-			$js.= ('noty("'.(isset($_REQUEST['name'][$ndx]) ? addslashes(rawurldecode(htmlspecialchars($_REQUEST['name'][$ndx]))).' - ' : '').
-				'"+theUILang.addTorrent'.$_REQUEST['result'][$ndx].
-				',"'.($_REQUEST['result'][$ndx]=='Success' ? 'success' : 'error').'");');
+		foreach( $results as $ndx=>$result )
+			$js.= ('noty('.addtorrent_literal(isset($names[$ndx]) ? UTF::display($names[$ndx].' - ') : '').
+				'+theUILang["addTorrent"+'.addtorrent_literal($result).']'.
+				','.addtorrent_literal(($result=='Success') ? 'success' : (($result=='Duplicate') ? 'alert' : 'error')).');');
 		CachedEcho::send($js,"text/html");
 	}
 }
@@ -28,12 +68,16 @@ else
 	if(isset($_REQUEST['dir_edit']))
 	{
 		$dir_edit = trim($_REQUEST['dir_edit']);
-		if((strlen($dir_edit)>0) && !rTorrentSettings::get()->correctDirectory($dir_edit))
+		if((strlen($dir_edit)>0) && (!rTorrentSettings::get()->correctDirectory($dir_edit) ||
+			!rTorrent::isInsideTopDirectory($dir_edit)))
 			$uploaded_files = array( array( 'status' => "FailedDirectory" ) );
 	}
+	// No addition is taken from the request. An addition is an rtorrent command
+	// appended to the load call, so accepting one here would let a request name
+	// the commands the daemon runs. The parameter stays on rTorrent::sendTorrent()
+	// and rTorrent::sendMagnet() for the plugins that build one in php.
 	$addition = null;
-	if(isset($_REQUEST['addition']) && is_array($_REQUEST['addition']))
-		$addition = $_REQUEST['addition'];
+	$loaded = rTorrent::loadedHashes();
 	if(empty($uploaded_files))
 	{
 		if(isset($_FILES['torrent_file']))
@@ -65,44 +109,50 @@ else
 		{
 			if(isset($_REQUEST['url']))
 			{
-				$url = trim($_REQUEST['url']);
-				$uploaded_url = array( 'name'=>$url, 'status'=>"Failed" );
-				if(strpos($url,"magnet:")===0)
+				$urls = preg_split('/[\r\n]+/', trim($_REQUEST['url']));
+				foreach($urls as $url)
 				{
-					$uploaded_url['status'] = (rTorrent::sendMagnet($url,
-						!isset($_REQUEST['torrents_start_stopped']),
-						!isset($_REQUEST['not_add_path']),
-						$dir_edit,$label,$addition) ? "Success" : "Failed" );
-				}
-				else
-				{
-					$cli = new Snoopy();
-					if(@$cli->fetchComplex($url) && $cli->status>=200 && $cli->status<300)
+					$url = trim($url);
+					if(empty($url)) continue;
+
+					$uploaded_url = array( 'name'=>$url, 'status'=>"Failed" );
+					if(strpos($url,"magnet:")===0)
 					{
-						$name = $cli->get_filename();
-						if($name===false)
-							$name = md5($url).".torrent";
-						$name = FileUtil::getUniqueUploadedFilename($name);
-						$f = @fopen($name,"w");
-						if($f!==false)
-						{
-							@fwrite($f,$cli->results,strlen($cli->results));
-							fclose($f);
-							$uploaded_url['file'] = $name;
-							$uploaded_url['status'] = "Success";
-						}
+						$uploaded_url['status'] = addtorrent_status(rTorrent::sendMagnet($url,
+							!isset($_REQUEST['torrents_start_stopped']),
+							!isset($_REQUEST['not_add_path']),
+							$dir_edit,$label,$addition), $loaded);
 					}
 					else
-						$uploaded_url['status'] = "FailedURL";
+					{
+						$cli = new Snoopy();
+						if(@$cli->fetchComplex($url) && $cli->status>=200 && $cli->status<300)
+						{
+							$name = $cli->get_filename();
+							if($name===false)
+								$name = md5($url).".torrent";
+							$name = FileUtil::getUniqueUploadedFilename($name);
+							$f = @fopen($name,"w");
+							if($f!==false)
+							{
+								@fwrite($f,$cli->results,strlen($cli->results));
+								fclose($f);
+								$uploaded_url['file'] = $name;
+								$uploaded_url['status'] = "Success";
+							}
+						}
+						else
+							$uploaded_url['status'] = "FailedURL";
+					}
+					$uploaded_files[] = $uploaded_url;
 				}
-				$uploaded_files[] = $uploaded_url;
 			}
 		}
 	}
-	if (!empty($_SERVER['PHP_SELF']) && !empty($_SERVER['HTTP_HOST']))
-		$location = "Location: //".$_SERVER['HTTP_HOST'].dirname($_SERVER['PHP_SELF'])."/addtorrent.php?";
-	else
-		$location = "Location: ./addtorrent.php?";
+	// A Location may be a relative reference, so an install whose public
+	// address cannot be determined is still sent back to the page it posted.
+	$base = Requests::publicBaseURL('/php/addtorrent.php');
+	$location = "Location: ".($base===false ? "./addtorrent.php?" : $base."php/addtorrent.php?");
 	if(empty($uploaded_files))
 		$uploaded_files = array( array( 'status' => "Failed" ) );
 	foreach($uploaded_files as &$file)
@@ -119,16 +169,18 @@ else
 			}
 			else
 			{
-				if(isset($_REQUEST['randomize_hash']))
+				// Randomizing adds a key to the info dictionary, which gives the
+				// torrent a new info hash. A private torrent's tracker knows it only
+				// by its own info hash and refuses a new one as unregistered, so a
+				// private torrent is left as it is.
+				if(isset($_REQUEST['randomize_hash']) && !$torrent->is_private())
 					$torrent->info['unique'] = uniqid("rutorrent-",true);
-				if(rTorrent::sendTorrent($torrent,
+				$file['status'] = addtorrent_status(rTorrent::sendTorrent($torrent,
 					!isset($_REQUEST['torrents_start_stopped']),
 					!isset($_REQUEST['not_add_path']),
-					$dir_edit,$label,$saveUploadedTorrents,isset($_REQUEST['fast_resume']),true,$addition)===false)
-				{
+					$dir_edit,$label,$saveUploadedTorrents,isset($_REQUEST['fast_resume']),true,$addition), $loaded);
+				if($file['status']!='Success')
 					@unlink($file['file']);
-					$file['status'] = "Failed";
-				}
 			}
 		}
 		$location.=('result[]='.$file['status'].'&');

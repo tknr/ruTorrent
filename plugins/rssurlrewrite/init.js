@@ -92,7 +92,7 @@ function checkCurrentRule() {
 theWebUI.showRules = function()
 {
 	theWebUI.request("?action=getrules",[theWebUI.loadRules, theWebUI]);
-}	
+}
 
 theWebUI.storeRuleParams = function()
 {
@@ -105,21 +105,21 @@ theWebUI.storeRuleParams = function()
 		plugin.rules[no].hrefAsSrc = $('#RLS_src').val();
 		plugin.rules[no].hrefAsDest = $('#RLS_dst').val();
 		plugin.rules[no].rssHash = $('#RLS_rss').val();
-	}	
+	}
 	return(no);
-}	
+}
 
 theWebUI.loadRules = function( rle )
 {
 	plugin.curRule = null;
 	var list = $("#rlslist");
 	list.empty();
-	$('#RLS_rss option').remove();	
-	$('#RLS_rss').append("<option value=''>"+theUILang.allFeeds+"</option>");
+	$('#RLS_rss option').remove();
+	$('#RLS_rss').append($("<option>").val("").text(theUILang.allFeeds));
 	for(var lbl in theWebUI.rssGroups)
-		$('#RLS_rss').append("<option value='"+lbl+"'>"+this.rssGroups[lbl].name+"</option>");
-	for(var lbl in theWebUI.rssLabels)
-		$('#RLS_rss').append("<option value='"+lbl+"'>"+this.rssLabels[lbl].name+"</option>");
+		$('#RLS_rss').append($("<option>").val(lbl).text(this.rssGroups[lbl].name));
+	for(lbl in theWebUI.rssLabels)
+		$('#RLS_rss').append($("<option>").val(lbl).text(this.rssLabels[lbl].name));
 	plugin.rules = rle;
 	plugin.maxRuleNo = 0;
 	if (plugin.rules) {
@@ -233,7 +233,7 @@ if(plugin.canChangeMenu())
 		{
 			let entries = plugin.createRSSMenuPrim.call(this);
 			entries.push([CMENU_SEP]);
-			entries.push([theUILang.rssRulesManager, "theWebUI.showRules()"]);
+			entries.push([theUILang.rssRulesManager, () => theWebUI.showRules()]);
 			return entries;
 		}
 		return plugin.createRSSMenuPrim.call(this);
@@ -256,7 +256,7 @@ if(plugin.canChangeMenu())
 		{
 			var el = theContextMenu.get( theUILang.rssMenuAddToFilter );
 			if( el && $type(theWebUI.rssItems[id]))
-				theContextMenu.add( el, [theUILang.rssURLInfo, "theWebUI.showURLInfo('"+id+"')"] );
+				theContextMenu.add( el, [theUILang.rssURLInfo, () => theWebUI.showURLInfo(id)] );
 		}
 	}
 }

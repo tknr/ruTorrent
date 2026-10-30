@@ -7,9 +7,9 @@ if( count( $argv ) > 1 )
 	require_once( dirname(__FILE__).'/../../php/xmlrpc.php' );
 	require_once( dirname(__FILE__).'/../../php/Torrent.php' );
 	require_once( dirname(__FILE__).'/../../php/rtorrent.php' );
-	require_once( dirname(__FILE__).'/../_task/task.php' );	
+	require_once( dirname(__FILE__).'/../_task/task.php' );
 	eval(FileUtil::getPluginConf('create'));
-	
+
 	if(function_exists('ini_set'))
 	{
 		ini_set('display_errors',true);
@@ -22,10 +22,10 @@ if( count( $argv ) > 1 )
 	if(is_file($fname) && is_readable($fname) &&
 		is_file($tname) && is_readable($tname))
 	{
-		$request = unserialize(file_get_contents( $fname ));
+		$request = unserialize(file_get_contents( $fname ), array( 'allowed_classes'=>false ));
 		$comment = '';
-		$announce_list = array(); 
-		$trackers = array(); 
+		$announce_list = array();
+		$trackers = array();
 		$trackersCount = 0;
 		if(isset($request['trackers']))
 		{

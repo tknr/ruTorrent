@@ -8,16 +8,16 @@
 
  theUILang.rssNewRule		= "Nouvelle règle";
  theUILang.mnu_rssurlrewrite	= "Remplacement des URL dans les flux RSS";
- theUILang.rssRulesManager	= "Administration des règles";
+ theUILang.rssRulesManager	= "Administration des règles RSS";
  theUILang.rssAddRule		= "Ajouter";
  theUILang.rssDelRule		= "Supprimer";
  theUILang.rssCheckRule		= "?";
  theUILang.rssRulesLegend	= "Configuration de la règle";
  theUILang.rssSrcHref		= "Si l'URL du torrent à charger correspond au modèle";
  theUILang.rssSrcGuid		= "Si l'URL de la description du torrent correspond au modèle";
- theUILang.rssDstHref		= "alors replacer l'URL du torrent à charger par";
- theUILang.rssDstGuid		= "alors replacer l'URL de la description du torrent par";
- theUILang.rssRulesDebug	= "Debug";
+ theUILang.rssDstHref		= "alors remplacer l'URL du torrent à charger par";
+ theUILang.rssDstGuid		= "alors remplacer l'URL de la description du torrent par";
+ theUILang.rssRulesDebug	= "Débogage de la règle";
  theUILang.rssTestString	= "Test";
  theUILang.rssTestResult	= "Résultat";
  theUILang.rssURLInfo		= "Info URL";

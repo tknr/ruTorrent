@@ -46,6 +46,15 @@ else {
 	$move_fastresume = trim( $argv[5] );
 }
 
+// The hash names a download to rtorrent and is put into commands built for it.
+// action.php checks it before it starts this script; anything else that starts
+// this script has not, and the script is on disk and runnable on its own.
+if( $is_ok && !ctype_xdigit( $hash ) )
+{
+	Debug( "argument 1 is not a torrent hash" );
+	$is_ok = false;
+}
+
 if( $is_ok && $hash && strlen( $datadir ) > 0 )
 {
 	Debug( "hash        : ".$hash );
@@ -54,11 +63,17 @@ if( $is_ok && $hash && strlen( $datadir ) > 0 )
 	Debug( "move files  : ".$move_datafiles );
 	Debug( "fast resume : ".$move_fastresume );
 
-	if( !rtMkDir( $datadir, 0777 ) )
+	// Checked again here: this runs detached, possibly after other moves, and
+	// a link made since action.php checked must not be followed either.
+	if( !rTorrent::isInsideTopDirectory( $datadir ) )
+	{
+		Debug( "outside the top directory: ".$datadir );
+	}
+	elseif( !rtMkDir( $datadir, 0777 ) )
 	{
 		Debug( "can't create ".$datadir );
 	}
-	elseif( !rtSetDataDir( $hash, $datadir, 
+	elseif( !rtSetDataDir( $hash, $datadir,
 		$move_addpath == '1', $move_datafiles == '1', $move_fastresume == '1',
 		$datadir_debug_enabled ) )
 	{

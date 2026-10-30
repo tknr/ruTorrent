@@ -18,7 +18,7 @@ class rAutoTools
 	public $watch_start = 0;
 	public $automove_filter = "/.*/";
 	public $addName = 0;
-	public $addLabel = 0;	
+	public $addLabel = 0;
 
 	static public function load()
 	{
@@ -27,19 +27,30 @@ class rAutoTools
 		$cache->get( $at );
 		if( !property_exists( $at, "automove_filter" ) || (@preg_match($at->automove_filter, null) === false) )
 			$at->automove_filter = "/.*/";
-		if( !property_exists( $at, "skip_move_for_files" ) || 
+		if( !property_exists( $at, "skip_move_for_files" ) ||
 			(strlen($at->skip_move_for_files) && (@preg_match($at->skip_move_for_files."u", null) === false)) )
 			$at->skip_move_for_files = "/(?:\.rar|\.zip)$/";
 		if( !property_exists( $at, "addName" ) )
 			$at->addName = 0;
 		if( !property_exists( $at, "addLabel" ) )
-			$at->addLabel = 0;			
+			$at->addLabel = 0;
 		return $at;
 	}
 	public function store()
 	{
 		$cache = new rCache();
 		return $cache->set( $this );
+	}
+	// Whether skip_move_for_files matches one of $files, the download's paths
+	// below its own directory. move.php then leaves the download where it is,
+	// so check.php must not point it anywhere else.
+	public function skipsMove( $files )
+	{
+		if(strlen($this->skip_move_for_files)>0)
+			foreach($files as $file)
+				if(preg_match($this->skip_move_for_files.'u',$file)==1)
+					return true;
+		return false;
 	}
 	public function set()
 	{
@@ -76,7 +87,7 @@ class rAutoTools
 					$this->automove_filter = $parts[1];
 					if(@preg_match($this->automove_filter, null) === false)
 						$this->automove_filter = "/.*/";
-				}				
+				}
 				else if( $parts[0] == "enable_move" )
 				{
 					$this->enable_move = $parts[1];
@@ -118,7 +129,7 @@ class rAutoTools
 				else if( $parts[0] == "add_name" )
 				{
 					$this->addName = $parts[1];
-				}				
+				}
 			}
 			$this->setHandlers();
 		}
@@ -135,7 +146,7 @@ class rAutoTools
 		$ret .= ", SkipMoveForFiles: '" . addslashes( $this->skip_move_for_files ). "'";
 		$ret .= ", EnableWatch: ".$this->enable_watch;
 		$ret .= ", PathToWatch: '".addslashes( $this->path_to_watch )."'";
-		$ret .= ", MoveFilter: '".addslashes( $this->automove_filter )."'";		
+		$ret .= ", MoveFilter: '".addslashes( $this->automove_filter )."'";
 		$ret .= ", WatchStart: ".$this->watch_start;
 		$ret .= ", AddLabel: ".$this->addLabel;
 		$ret .= ", AddName: ".$this->addName;
@@ -145,14 +156,14 @@ class rAutoTools
 	{
 		global $autowatch_interval;
 		$theSettings = rTorrentSettings::get();
-		$req = new rXMLRPCRequest( 
+		$req = new rXMLRPCRequest(
 // old version fix
 			$theSettings->getOnInsertCommand(array('autolabel'.User::getUser(), getCmd('cat=')))
 			);
 		$pathToAutoTools = dirname(__FILE__);
 
 		if($this->enable_label)
-			$cmd = 	$theSettings->getOnInsertCommand(array('_autolabel'.User::getUser(), 
+			$cmd = 	$theSettings->getOnInsertCommand(array('_autolabel'.User::getUser(),
 				getCmd('branch').'=$'.getCmd('not').'=$'.getCmd("d.get_custom1").'=,"'.
 				getCmd('execute').'={'.Utility::getPHP().','.$pathToAutoTools.'/label.php,$'.getCmd("d.get_hash").'=,'.User::getUser().'}"'));
 		else
@@ -162,7 +173,7 @@ class rAutoTools
 		{
 			if($theSettings->iVersion<0x808)
 			{
-				$cmd = 	$theSettings->getOnFinishedCommand(array('automove'.User::getUser(), 
+				$cmd = 	$theSettings->getOnFinishedCommand(array('automove'.User::getUser(),
 						getCmd('d.set_custom').'=x-dest,"$'.getCmd('execute_capture').
 						'={'.Utility::getPHP().','.$pathToAutoTools.'/move.php,$'.getCmd('d.get_hash').'=,$'.getCmd('d.get_base_path').'=,$'.
 						getCmd('d.get_base_filename').'=,$'.getCmd('d.is_multi_file').'=,$'.getCmd('d.get_custom1').'=,$'.getCmd('d.get_name').'=,'.User::getUser().'}" ; '.
@@ -173,7 +184,7 @@ class rAutoTools
 			{
 				if($this->fileop_type=="Move")
 				{
-					$cmd = 	$theSettings->getOnFinishedCommand(array('automove'.User::getUser(), 
+					$cmd = 	$theSettings->getOnFinishedCommand(array('automove'.User::getUser(),
 							getCmd('d.set_directory_base').'="$'.getCmd('execute_capture').
 							'={'.Utility::getPHP().','.$pathToAutoTools.'/check.php,$'.getCmd('d.get_base_path').'=,$'.
 							getCmd('d.get_base_filename').'=,$'.getCmd('d.is_multi_file').'=,$'.getCmd('d.get_custom1').'=,$'.getCmd('d.get_name').'=,'.User::getUser().'}" ; '.
@@ -184,7 +195,7 @@ class rAutoTools
 				else
 				{
 					$cmd = 	$theSettings->getOnFinishedCommand(array('automove'.User::getUser(),
-							getCmd('d.set_custom').'=x-dest,"$'.getCmd('execute_capture'). 
+							getCmd('d.set_custom').'=x-dest,"$'.getCmd('execute_capture').
 							'={'.Utility::getPHP().','.$pathToAutoTools.'/move.php,$'.getCmd('d.get_hash').'=,$'.getCmd('d.get_base_path').'=,$'.
 							getCmd('d.get_base_filename').'=,$'.getCmd('d.is_multi_file').'=,$'.getCmd('d.get_custom1').'=,$'.getCmd('d.get_name').'=,'.User::getUser().'}"'
 						));
@@ -194,8 +205,8 @@ class rAutoTools
 		else
 			$cmd = $theSettings->getOnFinishedCommand(array('automove'.User::getUser(), getCmd('cat=')));
 		$req->addCommand($cmd);
-		if($this->enable_watch && (trim($this->path_to_watch)!='')) 
-			$cmd = 	$theSettings->getAbsScheduleCommand('autowatch',$autowatch_interval,
+		if($this->enable_watch && (trim($this->path_to_watch)!=''))
+			$cmd = 	$theSettings->getAlignedScheduleCommand('autowatch',$autowatch_interval,
 				getCmd('execute').'={sh,-c,'.escapeshellarg(Utility::getPHP()).' '.escapeshellarg($pathToAutoTools.'/watch.php').' '.escapeshellarg(User::getUser()).' &}' );
 		else
 			$cmd = $theSettings->getRemoveScheduleCommand('autowatch');

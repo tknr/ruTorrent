@@ -8,10 +8,17 @@
 
  theUILang.checkWebsiteNotFound = "Check_port plugin: Plugin will not work. Invalid configuration";
  theUILang.checkPort		= "Portstatus überprüfen";
+ theUILang.checkingPort		= "Checking port status";
  theUILang.portStatus		= [
  				  "Portstatus ist unbekannt",
  				  "Port ist geschlossen",
  				  "Port ist offen"
  				  ];
+ theUILang.notAvailable = "-";
+ theUILang.portNotConfigured = "Not available on this server";
+
+ theUILang.forcePort		= "Bestimmten Port erzwingen...";
+ theUILang.forcePortPrompt	= "Lausch-Port festlegen (1-65535):";
+ theUILang.forcePortInvalid	= "Ungültige Portnummer.";
 
 thePlugins.get("check_port").langLoaded();

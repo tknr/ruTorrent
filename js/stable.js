@@ -23,18 +23,19 @@
 */
 
 var TYPE_STRING = 0;
-var TYPE_NUMBER = 1;
-var TYPE_DATE = 2;
-var TYPE_STRING_NO_CASE = 3;
-var TYPE_PROGRESS = 4;
-var TYPE_PEERS = 5;
-var TYPE_SEEDS = 6;
+var TYPE_STRING_LABEL = 1;
+var TYPE_STRING_NO_CASE = 2;
+var TYPE_NUMBER = 3;
+var TYPE_DATE = 4;
+var TYPE_PROGRESS = 5;
+var TYPE_PEERS = 6;
+var TYPE_SEEDS = 7;
 var ALIGN_AUTO = 0;
 var ALIGN_LEFT = 1;
 var ALIGN_CENTER = 2;
 var ALIGN_RIGHT = 3;
 
-var dxSTable = function() 
+var dxSTable = function()
 {
 	this.rowdata = {};
 	this.rowIDs = [];
@@ -165,6 +166,7 @@ dxSTable.prototype.create = function(ele, styles, aName)
 				if (this.isResizing) {
 					this.colDragResize(ev);
 				} else {
+					if (ev.originalEvent.movementX === 0 && ev.originalEvent.movementY === 0) return;
 					this.isMoving = true;
 					this.isSorting = false;
 					this.colDragMove(ev);
@@ -187,7 +189,7 @@ dxSTable.prototype.create = function(ele, styles, aName)
 	for (let i = 0; i < styles.length; i++) {
 		if(!$type(this.colOrder[i]))
 			this.colOrder[i] = i;
-		if(!$type(styles[this.colOrder[i]].enabled)) 
+		if(!$type(styles[this.colOrder[i]].enabled))
 			styles[this.colOrder[i]].enabled = true;
 		this.colsdata[i] = styles[this.colOrder[i]];
 		this.colsdata[i].width = iv(this.colsdata[i].width);
@@ -200,10 +202,10 @@ dxSTable.prototype.create = function(ele, styles, aName)
 				.attr("index", i)
 				.toggle(!!this.colsdata[i].enabled);
 		this.tHeadRow.append(td);
-		td.mouseclick((e) => { 
+		td.mouseclick((e) => {
 			this.onRightClick(e);
 		});
-		if(!$.support.touchable)
+		if(!$.support.touchPrimary)
 			td.on('mousedown', (e) => { this.bindKeys(); });
 	}
 
@@ -226,6 +228,13 @@ dxSTable.prototype.create = function(ele, styles, aName)
 dxSTable.prototype.handleClick = function(e)
 {
 	const row = $(e.target).parents('tr')[0];
+	// clearRows() drops the data at once but leaves the old rows in the DOM
+	// until the deferred sync removes them. An event landing on one of them --
+	// on a touch device, the browser's own mousedown that follows the dblclick
+	// which just changed the listing -- must not reach the handlers with an id
+	// the table no longer holds.
+	if (!row || !(row.id in this.rowdata))
+		return;
 	if (e.type == 'dblclick') {
 		this.ondblclick(row);
 	} else if (e.which === 3 || e.which === 1) {
@@ -290,11 +299,11 @@ dxSTable.prototype.onRightClick = function(e)
         if((e.which==3) && !this.isMoving)
         {
 		theContextMenu.clear();
-		for(var i = 0; i<this.colsdata.length; i++)
+		for(let i = 0; i<this.colsdata.length; i++)
 		{
 			if(this.colOrder[i])
 			{
-				var a = [this.colsdata[i].text, "theWebUI.getTable('"+this.prefix+"').toggleColumn("+i+")"];
+				var a = [this.colsdata[i].text, () => theWebUI.getTable(this.prefix).toggleColumn(i)];
 				if(this.colsdata[i].enabled)
 					a.unshift(CMENU_SEL);
 				theContextMenu.add(a);
@@ -418,7 +427,7 @@ dxSTable.prototype.renameColumn = function(no, name) {
 	}
 }
 
-dxSTable.prototype.Sort = function(e) 
+dxSTable.prototype.Sort = function(e)
 {
 	if (!this.created)
 		return true;
@@ -480,7 +489,7 @@ dxSTable.prototype.Sort = function(e)
 
 	this.isSorting = false;
 	this.refreshRows();
-	if($type(this.onsort) == "function") 
+	if($type(this.onsort) == "function")
 		setTimeout(() => this.onsort());
 	return(false);
 }
@@ -490,6 +499,7 @@ dxSTable.prototype.getSorter = function(colType, valMapping)
 	const peerSort = (x,y) => theSort.PeersConnected(x,y) || theSort.PeersTotal(x,y);
 	const sorter = {
 		[TYPE_STRING]: theSort.AlphaNumeric,
+		[TYPE_STRING_LABEL]: (x, y) => theSort.NormalizedAlphaNumeric(x, y),
 		[TYPE_PROGRESS]: theSort.Numeric,
 		[TYPE_NUMBER]: theSort.Numeric,
 		[TYPE_PEERS]: peerSort,
@@ -507,7 +517,7 @@ dxSTable.prototype.getSortFunc = function(id, reverse, valMapping)
 	return (x,y) => order * sorter(x, y);
 }
 
-var theSort = 
+var theSort =
 {
 	Default: function(x, y)
 	{
@@ -518,7 +528,7 @@ var theSort =
 		return((a < b) ? -1 : (a > b) ? 1 : 0);
 	},
 	Numeric: function(x, y)
-	{	
+	{
 		return(ir(x) - ir(y));
 	},
 	AlphaNumeric: function(x, y)
@@ -528,6 +538,10 @@ var theSort =
 		var a = (x + "").toLowerCase();
 		var b = (y + "").toLowerCase();
 		return(a.localeCompare(b));
+	},
+	NormalizedAlphaNumeric: function(x, y)
+	{
+		return this.AlphaNumeric(theNormalizer.normalize(x), theNormalizer.normalize(y));
 	},
 	PeersTotal: function(x, y)
 	{
@@ -555,7 +569,7 @@ dxSTable.prototype.init = function() {
 dxSTable.prototype.setBodyState = function(v) {
 	this.tBody.css("visibility", v);
 	const colcount = this.cols;
-	for(var i = 0; i < colcount; i++) 
+	for(var i = 0; i < colcount; i++)
 	{
 		if((this.colsdata[i].type==TYPE_PROGRESS) && this.colsdata[i].enabled)
 		{
@@ -576,7 +590,7 @@ dxSTable.prototype.setBodyState = function(v) {
 	}
 }
 
-dxSTable.prototype.assignEvents = function() 
+dxSTable.prototype.assignEvents = function()
 {
 	var self = this;
 	this.scrollTimeout = 0;
@@ -594,7 +608,7 @@ dxSTable.prototype.assignEvents = function()
 				if (
 					self.isScrolling ||
 					(!self.noDelayingDraw &&
-						Math.abs(self.scrollDiff) > this.TR_HEIGHT*3 &&
+						Math.abs(self.scrollDiff) > self.TR_HEIGHT*3 &&
 						(self.viewRows > maxRows))
 				) {
 					self.isScrolling = true;
@@ -641,7 +655,7 @@ dxSTable.prototype.assignEvents = function()
 			currCell.style.cursor = "default";
 		}
 	});
-	if(!$.support.touchable)
+	if(!$.support.touchPrimary)
 		this.dCont.on('mousedown', function(e) { self.bindKeys(); } );
 }
 
@@ -702,7 +716,7 @@ dxSTable.prototype.colDragResizeEnd = function(e) {
 	this.rowCover.hide();
 	this.colReszObj.hide();
 	document.body.style.cursor = "default";
-	return(false);	
+	return(false);
 }
 
 dxSTable.prototype.colDragMoveEnd = function(e) {
@@ -754,25 +768,23 @@ dxSTable.prototype.getMaxRows = function()
 		: Math.ceil(Math.min(this.tBody.height(), this.dCont.height()) / this.TR_HEIGHT);
 }
 
-dxSTable.prototype.refreshRows = function( height, fromScroll ) 
+dxSTable.prototype.refreshRows = function( height, fromScroll )
 {
 	if (this.isScrolling || !this.created)
 		return;
 
-	const maxRows = height ? height / this.TR_HEIGHT : this.getMaxRows();
-	const topRow = Math.max(0, Math.min(
-		this.viewRows - maxRows,
-		Math.floor(this.dBody.scrollTop / this.TR_HEIGHT)
-	));
 	const extra = this.noDelayingDraw ? 16 : 4;
 	const mni = Math.max(
 		0,
 		// floor to the neareast even number to keep alternating background color consistent
 		Math.floor(this.dBody.scrollTop / (this.TR_HEIGHT * 2)) * 2 - extra,
 	);
+	var bodyH = this.dBody.getBoundingClientRect().height;
+	if (bodyH > this.TR_HEIGHT * 2) this._cachedBodyH = bodyH;
+	else if (this._cachedBodyH) bodyH = this._cachedBodyH;
 	const mxi = Math.min(
 		this.viewRows,
-		Math.ceil((this.dBody.scrollTop + this.dBody.getBoundingClientRect().height) / this.TR_HEIGHT) + extra,
+		Math.ceil((this.dBody.scrollTop + bodyH) / this.TR_HEIGHT) + extra,
 	);
 	if (fromScroll && (mni==this.mni && mxi==this.mxi))
 		return;
@@ -796,7 +808,7 @@ dxSTable.prototype.refreshRows = function( height, fromScroll )
 	this.resizeColumn();
 }
 
-dxSTable.prototype.keyEvents = function(e) 
+dxSTable.prototype.keyEvents = function(e)
 {
 	var self = e.data;
 	if(!e.fromTextCtrl && !theDialogManager.isModalState())
@@ -804,7 +816,7 @@ dxSTable.prototype.keyEvents = function(e)
 		var c = e.which;
 		if((browser.isKonqueror && c == 127) || (c == 46)) {
 			// Delete key
-			if ($type(self.ondelete) === "function") 
+			if ($type(self.ondelete) === "function")
 				self.ondelete();
 		} else if (e.metaKey) {
 			switch(c)
@@ -812,14 +824,14 @@ dxSTable.prototype.keyEvents = function(e)
 				case 65:
 				{
 					self.fillSelection();
-					if($type(self.onselect) == "function") 
+					if($type(self.onselect) == "function")
 						self.onselect(e);
 					return(false);
 				}
 				case 90:
 				{
 					self.clearSelection();
-					if($type(self.onselect) == "function") 
+					if($type(self.onselect) == "function")
 						self.onselect(e);
 					return(false);
 	            		}
@@ -828,9 +840,9 @@ dxSTable.prototype.keyEvents = function(e)
 	}
 }
 
-dxSTable.prototype.selectRow = function(e, row) 
+dxSTable.prototype.selectRow = function(e, row)
 {
-	if(!$.support.touchable)
+	if(!$.support.touchPrimary)
 		this.bindKeys();
 
 	const targetId = row.id;
@@ -889,7 +901,7 @@ dxSTable.prototype.selectRow = function(e, row)
 		this.markSelectionDirty();
 	}
 
-	if($type(this.onselect) == "function") 
+	if($type(this.onselect) == "function")
 		this.onselect(e, targetId);
 	return(false);
 }
@@ -918,7 +930,7 @@ dxSTable.prototype.addRow = function(cols, sId, icon, attr)
 	this.rowdata[sId] = {"data" : cols, "icon" : icon, "attr" : attr, "enabled" : true, fmtdata: this.format(this,cols.slice(0))};
 	this.rowSel[sId] = false;
 	this.rowIDs.push(sId);
-	
+
 	this.viewRows++;
 
 	this.markViewRowsChange(sId, 1);
@@ -960,6 +972,7 @@ dxSTable.prototype.createRow = function(cols, sId, icon, attr) {
 		const celldata = data[index] || '';
 		const rawvalue = cols[index] || '';
 		const isProgress = cdat.type === TYPE_PROGRESS;
+		const isLabel = cdat.type === TYPE_STRING_LABEL;
 		if (isProgress) {
 			td.attr({rawvalue:rawvalue}).append(
 				$("<span>").addClass("meter-text").css({overflow:"visible"}).text(celldata),
@@ -967,10 +980,25 @@ dxSTable.prototype.createRow = function(cols, sId, icon, attr) {
 					.addClass("meter-value")
 					.css(this.progressStyle(celldata)),
 			);
+		} else if (isLabel) {
+			td.append(
+				$("<div>").html(escapeHTML(celldata || " ").replace(/`(.*?)`$/, '<code>$1</code>')),
+			);
 		} else {
 			td.append(
 				$("<div>").text(celldata || " "),
 			);
+			// The table is table-layout:fixed with white-space:nowrap and
+			// overflow:hidden, so a value wider than its column is cut off at
+			// the edge with no ellipsis and no other sign that anything is
+			// missing. Wrapping instead is not an option: the body is
+			// virtualized and derives every row's height from the first one
+			// (TR_HEIGHT), so one taller row desynchronizes the scroll for the
+			// whole list. A column that opts in therefore carries the full
+			// value as the cell's own tooltip.
+			// Only when there is something to show: an empty title="" on the
+			// cell would shadow the row's tooltip, which carries the name.
+			if (cdat.titled && celldata) td.attr("title", celldata);
 		}
 		row.append(td);
 	}
@@ -984,7 +1012,7 @@ dxSTable.prototype.createRow = function(cols, sId, icon, attr) {
 	return ret;
 }
 
-dxSTable.prototype.removeRow = function(sId) 
+dxSTable.prototype.removeRow = function(sId)
 {
 	if(!(sId in this.rowdata))
 		return;
@@ -1010,13 +1038,14 @@ dxSTable.prototype.updateRows = function(rawRowObjs)
 		this.setRowById(obj, sId, obj.icon, obj.attr);
 }
 
-dxSTable.prototype.clearRows = function() 
+dxSTable.prototype.clearRows = function()
 {
 	this.viewRows = 0;
 	this.selCount = 0;
 	this.rowdata = {};
 	this.rowSel = {};
 	this.rowIDs = [];
+	this.stSel = [];
 
 	delete this.pendingSync.rows;
 	delete this.pendingSync.dirty;
@@ -1027,7 +1056,7 @@ dxSTable.prototype.clearRows = function()
 
 dxSTable.prototype.setAlignment = function() {
 	var i, aAlign, j, align;
-	var aAlign = [];
+	aAlign = [];
 	for (let i = 0; i < this.cols; i++) {
 		switch(this.colsdata[i].align) {
 			case ALIGN_LEFT:
@@ -1039,8 +1068,8 @@ dxSTable.prototype.setAlignment = function() {
 			case ALIGN_RIGHT:
 				align = "right";
 				break;
-			case ALIGN_AUTO: 
-			default: 
+			case ALIGN_AUTO:
+			default:
 				align = (this.colsdata[i].type==TYPE_NUMBER) ? "right" : "left";
 		}
 		aAlign.push(align);
@@ -1049,7 +1078,7 @@ dxSTable.prototype.setAlignment = function() {
 	var col = this.tBodyCols;
 	if(document.all || browser.isAppleWebKit || browser.isKonqueror)
 	{
-		for(var i = 0; i < col.length; i++)
+		for(i = 0; i < col.length; i++)
 			col[i].align = aAlign[i];
 	}
 	else
@@ -1068,12 +1097,12 @@ dxSTable.prototype.setAlignment = function() {
 			return;
 		if(!$type(this.colRules))
 			this.colRules = new Array();
-		for(var j = 0; j < col.length; j++)
+		for(j = 0; j < col.length; j++)
 		{
 			var k = this.colOrder[j];
 			if(!this.colRules[k])
 			{
-				for(var i = 0, l = rules.length; i < l; i++)
+				for(i = 0, l = rules.length; i < l; i++)
 				{
 					if((rules[i].type == CSSRule.STYLE_RULE) && (rules[i].selectorText == ".stable-" + this.dCont.attr("id") + "-col-" + k))
 					{
@@ -1114,7 +1143,7 @@ dxSTable.prototype.refreshSelection = function() {
 	if (this.created) {
 		var rows = this.tBody[0].rows, l = rows.length;
 		for (var i = 0; i < l; i++) {
-			if(this.rowSel[rows[i].id] == true) 
+			if(this.rowSel[rows[i].id] == true)
 				rows[i].classList.add("selected");
 			else
 				rows[i].classList.remove("selected");
@@ -1134,7 +1163,7 @@ dxSTable.prototype.clearSelection = function()
 dxSTable.prototype.correctSelection = function()
 {
 	this.selCount = 0;
-	for(var k in this.rowSel) 
+	for(var k in this.rowSel)
 	{
 		if(this.rowdata[k].enabled && this.rowSel[k])
 		{
@@ -1143,10 +1172,10 @@ dxSTable.prototype.correctSelection = function()
 	}
 }
 
-dxSTable.prototype.fillSelection = function() 
+dxSTable.prototype.fillSelection = function()
 {
 	this.stSel = [];
-	for(var k in this.rowSel) 
+	for(var k in this.rowSel)
 		if(this.rowdata[k].enabled)
 		{
 			this.rowSel[k] = true;
@@ -1323,6 +1352,12 @@ dxSTable.prototype.syncDOM = function()
 {
 	if (!this.created || !this.dCont.length)
 		return;
+	// refreshRows() draws nothing while the table is scrolling, and this
+	// consumes what it is handed, so rows added or removed mid-scroll would be
+	// dropped with nothing left to ask for them again. Leave them queued: the
+	// scroll timeout syncs once more when it clears isScrolling.
+	if (this.isScrolling && this.pendingSync.prows)
+		return;
 	const p = this.pendingSync;
 	this.pendingSync = {};
 	if (p.clear)
@@ -1369,8 +1404,15 @@ dxSTable.prototype.syncDOM = function()
 						textEl = td.firstChild;
 					}
 					$(textEl).text(fmtVal);
+					// The rows are built once and updated in place from here
+					// on, so a tooltip set only in createRow would freeze at
+					// whatever the message was when the row first appeared.
+					if (this.colsdata[c].titled) {
+						if (fmtVal) td.setAttribute("title", fmtVal);
+						else td.removeAttribute("title");
+					}
 				}
-			}			
+			}
 			// update icon
 			if ('icon' in marks) {
 				const icon = dataRow.icon;
@@ -1470,7 +1512,7 @@ dxSTable.prototype.syncDOMAsync = function()
 			{
 				if (dh.startTime !== -1)
 				{
-					const remainingMs = dh.delayMs - (dh.startTime - new Date().getTime());
+					const remainingMs = dh.delayMs - (new Date().getTime() - dh.startTime);
 					if (remainingMs > 0)
 						start(dh, updateDebounce, remainingMs);
 					else
@@ -1501,7 +1543,7 @@ dxSTable.prototype.getIcon = function(row)
 	return(this.rowdata[row].icon);
 }
 
-dxSTable.prototype.setIcon = function(row, icon) 
+dxSTable.prototype.setIcon = function(row, icon)
 {
 	const dataRow = this.rowdata[row];
 	const oldIconIsImg = Boolean(dataRow.icon?.src);
@@ -1546,24 +1588,24 @@ dxSTable.prototype.getAttr = function(row, attrName)
 	return(this.rowdata[row]?.attr ? this.rowdata[row].attr[attrName] : null);
 }
 
-dxSTable.prototype.resize = function(w, h) 
+dxSTable.prototype.resize = function(w, h)
 {
 	this.pendingSync.resizeWidth = w;
 	this.pendingSync.resizeHeight = h;
 	this.syncDOMAsync();
 }
 
-dxSTable.prototype.isColumnEnabled = function(i) 
+dxSTable.prototype.isColumnEnabled = function(i)
 {
 	return(this.colsdata[this.getColOrder(i)].enabled ? 1 : 0);
 }
 
-dxSTable.prototype.getColWidth = function(i) 
+dxSTable.prototype.getColWidth = function(i)
 {
 	return(this.colsdata[this.getColOrder(i)].width);
 }
 
-dxSTable.prototype.getFirstSelected = function() 
+dxSTable.prototype.getFirstSelected = function()
 {
 	var ret = null;
 	for( var k in this.rowSel )
@@ -1577,7 +1619,7 @@ dxSTable.prototype.getFirstSelected = function()
 	return(ret);
 }
 
-dxSTable.prototype.scrollTo = function(value) 
+dxSTable.prototype.scrollTo = function(value)
 {
 	this.pendingSync.scrollTo = value;
 	this.syncDOMAsync();

@@ -1,6 +1,7 @@
 <?php
 
 require_once( '../../php/xmlrpc.php' );
+require_once( '../../php/xmlrpc_proxy.php' );
 require_once( 'rpccache.php' );
 
 $mode = "raw";
@@ -21,9 +22,30 @@ if(isset($HTTP_RAW_POST_DATA))
 			case "cmd":
 			{
 				$c = getCmd(rawurldecode($parts[1]));
-				if(strpos($c,"execute")===false)
-					$add[] = $c;
-				break;  	
+				// Every other door to rtorrent asks conf/xmlrpc_proxy.php what
+				// a caller may name. This one asked whether the word "execute"
+				// appeared anywhere in the string, which is neither the same
+				// list nor the same question: import, try_import, method.insert
+				// and system.shutdown carry no "execute" and were taken as they
+				// arrived. The modes below then put the string where rtorrent
+				// runs it -- as a method name of its own in glbl, ttl and prp,
+				// and as a command parameter of d.multicall in list, fls, prs,
+				// trk and trkall, where it is a command and not a value.
+				//
+				// Asked over the shared list instead, so that this door and the
+				// raw-XMLRPC door below refuse the same commands.
+				$refusedCommand = XMLRPCProxy::refusedCommandName($c);
+				if($refusedCommand !== null)
+				{
+					FileUtil::toLog("httprpc: refused a command parameter naming ".$refusedCommand);
+					header("HTTP/1.0 403 Forbidden");
+					CachedEcho::send("Refused: this server does not allow ".
+						htmlspecialchars($refusedCommand,ENT_QUOTES,"UTF-8").
+						" on this connection.","text/html");
+					exit;
+				}
+				$add[] = $c;
+				break;
 			}
 			case "s":
 			{
@@ -54,6 +76,32 @@ if(isset($HTTP_RAW_POST_DATA))
 	}
 }
 
+/**
+ * Resolve as much of a path as exists. A download directory usually does not
+ * exist yet, so realpath() on it answers nothing and only a lexical check is
+ * left -- which one symlink inside the customer's own tree defeats, and the
+ * customer can create symlinks over FTP. Walk up to the deepest ancestor that
+ * does exist, resolve that, and re-attach the rest.
+ */
+function httprpcResolvePath($path)
+{
+	$real = @realpath($path);
+	if($real !== false)
+		return $real;
+
+	$parts = explode('/', trim($path, '/'));
+	$tail = array();
+	while(count($parts) > 0)
+	{
+		array_unshift($tail, array_pop($parts));
+		$base = '/'.implode('/', $parts);
+		$real = @realpath(($base === '') ? '/' : $base);
+		if($real !== false)
+			return rtrim($real, '/').'/'.implode('/', $tail);
+	}
+	return '';
+}
+
 function makeMulticall($cmds,$hash,$add,$prefix)
 {
 	$cmd = new rXMLRPCCommand( $prefix.".multicall", array( $hash, "" ) );
@@ -62,7 +110,10 @@ function makeMulticall($cmds,$hash,$add,$prefix)
 		$cmd->addParameter($prm);
 	$cnt = count($cmds)+count($add);
 	$req = new rXMLRPCRequest($cmd);
-	if($req->success(false))
+	// Detail polling can race with torrent erase/replacement.
+	if(($prefix === 'f') || ($prefix === 'p') || ($prefix === 't'))
+		$req->important = false;
+	if($req->success(true))
 	{
 	        $result = array();
 		for($i = 0; $i<count($req->val); $i+=$cnt)
@@ -72,17 +123,111 @@ function makeMulticall($cmds,$hash,$add,$prefix)
 	return(false);
 }
 
+// The socket manager stages min_alloc/max_alloc until adjust_alloc recomputes
+// the allocation. A rejected recompute keeps the staged values, which then also
+// breaks every later recompute, so the bounds in effect are read before they are
+// touched and put back if the recompute is refused.
+function getSocketAlloc($categories)
+{
+	$req = new rXMLRPCRequest();
+	foreach($categories as $category)
+	{
+		$req->addCommand(new rXMLRPCCommand("system.sockets.".$category.".min_alloc"));
+		$req->addCommand(new rXMLRPCCommand("system.sockets.".$category.".max_alloc"));
+	}
+	$req->important = false;
+	if(!$req->success(true) || (count($req->val)!=2*count($categories)))
+		return(array());
+	$ret = array();
+	foreach($categories as $ndx=>$category)
+		$ret[$category] = array_slice($req->val,2*$ndx,2);
+	return($ret);
+}
+
+function restoreSocketAlloc($saved)
+{
+	$req = new rXMLRPCRequest();
+	foreach($saved as $category=>$bounds)
+	{
+		$req->addCommand(new rXMLRPCCommand(
+			"system.sockets.".$category.".min_alloc.set",array("",floatval($bounds[0]))));
+		$req->addCommand(new rXMLRPCCommand(
+			"system.sockets.".$category.".max_alloc.set",array("",floatval($bounds[1]))));
+	}
+	$req->addCommand(new rXMLRPCCommand("system.sockets.adjust_alloc"));
+	// These bounds were in effect moments ago, so the recompute has to accept
+	// them again. Report it rather than leave a stale allocation staged.
+	if(!$req->success(true))
+		FileUtil::toLog("setsettings: socket allocation left staged, restore was refused");
+}
+
+// Every settings write is recorded: what was asked for, the value in effect
+// before and after, and whether rtorrent took it. A refused batch can leave a
+// value clamped or untouched, so the "to" side is read back rather than assumed.
+//
+// Everything on the settings page has a symmetric get_* alias except these: the
+// hash_* trio stopped being readable in 0.9.0, and dht is reported through
+// dht.statistics instead of a getter.
+function getSettingReadCommand($name)
+{
+	if($name=="dht")
+		return(null);
+	if((rTorrentSettings::get()->iVersion>=0x900) &&
+		in_array($name,array("hash_interval","hash_max_tries","hash_read_ahead")))
+		return(null);
+	return("get_".$name);
+}
+
+function readSettingValues($names)
+{
+	$ret = array_fill(0,count($names),null);
+	$ndxs = array();
+	$req = new rXMLRPCRequest();
+	foreach($names as $ndx=>$name)
+		if(($cmd = getSettingReadCommand($name))!==null)
+		{
+			$req->addCommand(new rXMLRPCCommand($cmd));
+			$ndxs[] = $ndx;
+		}
+	if(!count($ndxs))
+		return($ret);
+	$req->important = false;
+	if($req->success(true) && (count($req->val)==count($ndxs)))
+		foreach($ndxs as $pos=>$ndx)
+			$ret[$ndx] = $req->val[$pos];
+	return($ret);
+}
+
+function logSettingsWrite($names,$values,$before,$after,$accepted,$faultString)
+{
+	foreach($names as $ndx=>$name)
+		FileUtil::toLog("setsettings: ".$name.
+			" requested=".$values[$ndx].
+			" from=".(($before[$ndx]===null) ? "unavailable" : $before[$ndx]).
+			" to=".(($after[$ndx]===null) ? "unavailable" : $after[$ndx]).
+			" ".($accepted ? "accepted" : "rejected"));
+	FileUtil::toLog("setsettings: batch ".($accepted ? "accepted" : "rejected").
+		((!$accepted && ($faultString!=='')) ? " (".$faultString.")" : ""));
+}
+
 function makeSimpleCall($cmds,$hash)
 {
 	$req = new rXMLRPCRequest();
 	foreach($hash as $h)
-		foreach($cmds as $cmd)	
+		foreach($cmds as $cmd)
 			$req->addCommand( new rXMLRPCCommand( $cmd, $h ) );
-       	return($req->success(false) ? $req->val : false);
+       	return($req->success(true) ? $req->val : false);
 }
 
 $result = null;
+$refused = false;
 
+// Several modes name a command from request input: setsettings and setprops
+// concatenate one, and glbl, ttl and prp take cmd= as a name outright. A name
+// that is not one stops the mode here, with whatever it had built discarded
+// unsent, rather than travelling any further.
+try
+{
 switch($mode)
 {
 	case "list":	/**/
@@ -94,7 +239,8 @@ switch($mode)
 			"d.get_custom1=", "d.get_peers_accounted=", "d.get_peers_not_connected=", "d.get_peers_connected=", "d.get_peers_complete=",
 			"d.get_left_bytes=", "d.get_priority=", "d.get_state_changed=", "d.get_skip_total=", "d.get_hashing=",
 			"d.get_chunks_hashed=", "d.get_base_path=", "d.get_creation_date=", "d.get_tracker_size=", "d.is_active=",
-			"d.get_message=", "d.get_custom2=", "d.get_free_diskspace=", "d.is_private=", "d.is_multi_file="
+			"d.get_message=", "d.get_custom2=", "d.get_free_diskspace=", "d.is_private=", "d.is_multi_file=",
+			"d.is_partially_done="
 			);
 		$cmd = new rXMLRPCCommand( "d.multicall", "main" );
 		$cmd->addParameters( array_map("getCmd", $cmds) );
@@ -102,24 +248,30 @@ switch($mode)
 			$cmd->addParameter($prm);
 		$cnt = count($cmds)+count($add);
 		$req = new rXMLRPCRequest($cmd);
-		if($req->success(false))
+		if($req->success(true))
 		{
 			$theCache = new rpcCache();
 			$dTorrents = array();
 			$torrents = array();
-			foreach($req->val as $index=>$value) 
+			foreach($req->val as $index=>$value)
 			{
-				if($index % $cnt == 0) 
+				if($index % $cnt == 0)
 				{
 					$current_index = $value;
 					$torrents[$current_index] = array();
-				} 
+				}
 				else
 					$torrents[$current_index][] = $value;
 			}
 
-			$theCache->calcDifference( $cid, $torrents, $dTorrents );
+			// Without a previous state there is nothing to diff against, so the
+			// answer is the whole list and carries no deletions -- say so, or a
+			// client that has been running since before the state was lost keeps
+			// torrents rtorrent no longer has, with only a reload to clear them.
+			$hasPrevious = $theCache->calcDifference( $cid, $torrents, $dTorrents );
 			$result = array( "t"=>$torrents, "cid"=>$cid );
+			if(!$hasPrevious)
+				$result["full"] = 1;
 			if(count($dTorrents))
 				$result["d"] = $dTorrents;
 		}
@@ -130,6 +282,8 @@ switch($mode)
 		$result = makeMulticall(array(
 			"f.get_path=", "f.get_completed_chunks=", "f.get_size_chunks=", "f.get_size_bytes=", "f.get_priority="
 			),$hash[0],$add,'f');
+		if($result === false)
+			$result = array();
 		break;
 	}
 	case "prs":	/**/
@@ -139,21 +293,25 @@ switch($mode)
 			"p.is_snubbed=", "p.get_completed_percent=", "p.get_down_total=", "p.get_up_total=", "p.get_down_rate=",
 			"p.get_up_rate=", "p.get_id_html=", "p.get_peer_rate=", "p.get_peer_total=", "p.get_port="
 			),$hash[0],$add,'p');
+		if($result === false)
+			$result = array();
 		break;
 	}
 	case "trk":	/**/
 	{
 		$result = makeMulticall(array(
-		        "t.get_url=", "t.get_type=", "t.is_enabled=", "t.get_group=", "t.get_scrape_complete=", 
+		        "t.get_url=", "t.get_type=", "t.is_enabled=", "t.get_group=", "t.get_scrape_complete=",
 			"t.get_scrape_incomplete=", "t.get_scrape_downloaded=",
 			"t.get_normal_interval=", "t.get_scrape_time_last="
 			),$hash[0],$add,'t');
+		if($result === false)
+			$result = array();
 		break;
 	}
 	case "stg":	/**/
 	{
 		$cmds = array(
-			"get_check_hash", "get_bind", "get_dht_port", "get_directory", "get_download_rate", 
+			"get_check_hash", "get_bind", "get_dht_port", "get_directory", "get_download_rate",
 			"get_hash_interval", "get_hash_max_tries", "get_hash_read_ahead", "get_http_cacert", "get_http_capath",
 			"get_http_proxy", "get_ip", "get_max_downloads_div", "get_max_downloads_global", "get_max_file_size",
 			"get_max_memory_usage", "get_max_open_files", "get_max_open_http", "get_max_peers", "get_max_peers_seed",
@@ -168,10 +326,10 @@ switch($mode)
 			$cmds[5] = $cmds[6] = $cmds[7] = "cat";
 		$req = new rXMLRPCRequest( new rXMLRPCCommand( "dht_statistics" ) );
 		foreach( $cmds as $cmd )
-			$req->addCommand( new rXMLRPCCommand( $cmd ) );	
+			$req->addCommand( new rXMLRPCCommand( $cmd ) );
 		foreach( $add as $prm )
-			$req->addCommand( new rXMLRPCCommand( $prm ) );	
-		if($req->success(false))
+			$req->addCommand( new rXMLRPCCommand( $prm ) );
+		if($req->success(true))
 		{
 	        	$result = array();
 			$dht_active = $req->val[0];
@@ -194,10 +352,10 @@ switch($mode)
 		        );
 		$req = new rXMLRPCRequest();
 		foreach( $cmds as $cmd )
-			$req->addCommand( new rXMLRPCCommand( $cmd ) );	
+			$req->addCommand( new rXMLRPCCommand( $cmd ) );
 		foreach( $add as $prm )
-			$req->addCommand( new rXMLRPCCommand( $prm ) );	
-		if($req->success(false))
+			$req->addCommand( new rXMLRPCCommand( $prm ) );
+		if($req->success(true))
 	        	$result = $req->val;
 		break;
 	}
@@ -211,7 +369,7 @@ switch($mode)
 		$req = new rXMLRPCRequest();
 		foreach( $cmds as $cmd )
 			$req->addCommand( new rXMLRPCCommand( $cmd ) );
-		if($req->success(false)) {
+		if($req->success(true)) {
 			$result = $req->val;
 			if (count($cmds) < 3)
 				$result[] = -1;
@@ -226,10 +384,10 @@ switch($mode)
 		        );
 		$req = new rXMLRPCRequest();
 		foreach( $cmds as $cmd )
-			$req->addCommand( new rXMLRPCCommand( $cmd, $hash[0] ) );	
+			$req->addCommand( new rXMLRPCCommand( $cmd, $hash[0] ) );
 		foreach( $add as $prm )
-			$req->addCommand( new rXMLRPCCommand( $prm, $hash[0] ) );	
-		if($req->success(false))
+			$req->addCommand( new rXMLRPCCommand( $prm, $hash[0] ) );
+		if($req->success(true))
 	        	$result = $req->val;
 		break;
 	}
@@ -238,7 +396,7 @@ switch($mode)
 		$req = new rXMLRPCRequest();
 		foreach($vs as $ndx=>$value)
 			$req->addCommand( new rXMLRPCCommand( "t.set_enabled", array($hash[0], intval($value), intval($ss[0])) ) );
-		if($req->success(false))
+		if($req->success(true))
 	        	$result = $req->val;
 		break;
 	}
@@ -246,9 +404,18 @@ switch($mode)
 	{
 		$req = new rXMLRPCRequest();
 		foreach($vs as $v)
+		{
+			// A file index, spelled as one. "v" is this door's general
+			// parameter and carries a label or a peer address in other modes,
+			// so the shape is required here rather than at the parse. intval()
+			// answers 0 for every string that is not a number, and 0 is a file
+			// of the torrent this command would then set.
+			if(!preg_match('/^[0-9]+$/D',$v))
+				continue;
 			$req->addCommand( new rXMLRPCCommand( "f.set_priority", array($hash[0], intval($v), intval($ss[0])) ) );
+		}
 		$req->addCommand( new rXMLRPCCommand("d.update_priorities", $hash[0]) );
-		if($req->success(false))
+		if($req->success(true))
 	        	$result = $req->val;
 		break;
 	}
@@ -257,14 +424,33 @@ switch($mode)
         	$result = makeSimpleCall(array("d.check_hash"), $hash);
 		break;
 	}
+	case "getsavepath":	/**/
+	{
+		if(isset($hash[0]))
+		{
+			$req = new rXMLRPCRequest( array(
+				new rXMLRPCCommand( "d.open", $hash[0] ),
+				new rXMLRPCCommand( "d.get_base_path", $hash[0] ),
+				new rXMLRPCCommand( "d.close", $hash[0] )
+			) );
+			if($req->success(true))
+				$result = $req->val;
+		}
+		break;
+	}
 	case "start":	/**/
 	{
-		$result = makeSimpleCall(array("d.open","d.start"), $hash);
+		$result = makeSimpleCall(array("d.open","d.start","d.resume"), $hash);
 		break;
 	}
 	case "stop":	/**/
 	{
 		$result = makeSimpleCall(array("d.stop","d.close"), $hash);
+		break;
+	}
+	case "updatetracker":	/**/
+	{
+		$result = makeSimpleCall(array("d.tracker_announce"), $hash);
 		break;
 	}
 	case "pause":	/**/
@@ -274,7 +460,34 @@ switch($mode)
 	}
 	case "unpause":	/**/
 	{
+		// d.start (not just d.resume) so d.state is restored: d.resume alone
+		// leaves the torrent flagged paused in the UI forever and marked
+		// user-stopped for the next rtorrent restart (the direct XML-RPC
+		// mount's unpause stub sends d.start as well)
 		$result = makeSimpleCall(array("d.start"), $hash);
+		break;
+	}
+	case "removewithdata":	/**/
+	{
+		$forceDelete = isset($vs[0]) ? $vs[0] : "1";
+		// Delegate to the shared erasedata helper so the httprpc and direct
+		// (plugins/erasedata/action.php) paths record the identical delete list.
+		// removewithdata only originates from the erasedata plugin, so its helper
+		// is present; guard anyway and fall back to a plain erase if it is not.
+		$helper = dirname(__FILE__)."/../erasedata/removewithdata.php";
+		if(file_exists($helper))
+		{
+			require_once($helper);
+			$result = erasedataRemoveWithData($hash, $forceDelete);
+		}
+		else
+		{
+			$req = new rXMLRPCRequest();
+			foreach($hash as $h)
+				$req->addCommand( new rXMLRPCCommand( getCmd("d.erase"), $h ) );
+			if($req->success())
+				$result = $req->val;
+		}
 		break;
 	}
 	case "remove":	/**/
@@ -287,7 +500,7 @@ switch($mode)
 		$req = new rXMLRPCRequest();
 		foreach($hash as $ndx=>$h)
 			$req->addCommand( new rXMLRPCCommand( "d.set_priority", array($h, intval($vs[0])) ) );
-		if($req->success(false))
+		if($req->success(true))
 	        	$result = $req->val;
 		break;
 	}
@@ -296,14 +509,14 @@ switch($mode)
 		$req = new rXMLRPCRequest();
 		foreach($hash as $ndx=>$h)
 			$req->addCommand( new rXMLRPCCommand( "d.set_custom1", array($h, $vs[0]) ) );
-		if($req->success(false))
+		if($req->success(true))
 	        	$result = $req->val;
 		break;
 	}
 	case "trkall":	/**/
 	{
 		$cmds = array(
-		        "t.get_url=", "t.get_type=", "t.is_enabled=", "t.get_group=", "t.get_scrape_complete=", 
+		        "t.get_url=", "t.get_type=", "t.is_enabled=", "t.get_group=", "t.get_scrape_complete=",
 			"t.get_scrape_incomplete=", "t.get_scrape_downloaded="
 		        );
 		$result = array();
@@ -318,12 +531,12 @@ switch($mode)
 			$cnt = count($cmds)+count($add);
 			$req = new rXMLRPCRequest();
 			$req->addCommand( new rXMLRPCCommand( "d.multicall", array
-			( 
+			(
 				"main",
 				getCmd("d.get_hash="),
 				$prm
-			) ) );						
-	       		if($req->success(false))
+			) ) );
+	       		if($req->success(true))
 			{
 				for( $i = 0; $i< count($req->val); $i+=2 )
 				{
@@ -332,7 +545,7 @@ switch($mode)
 						unset( $tracker[ count($tracker)-1 ] );
 					$result[ $req->val[$i] ] = array_chunk( $tracker, $cnt );
 				}
-			}									
+			}
 		}
 		else
 		{
@@ -340,7 +553,7 @@ switch($mode)
 			{
 				$ret = makeMulticall($cmds,$h,$add,'t');
 				if($ret===false)
-					$result[$h] = array();				
+					$result[$h] = array();
 				else
 					$result[$h] = $ret;
 			}
@@ -350,22 +563,61 @@ switch($mode)
 	case "setsettings":
 	{
 		$req = new rXMLRPCRequest();
+		$socketCategories = array();
+		$logNames = array();
+		$logValues = array();
 		foreach($vs as $ndx=>$v)
 		{
 			if($ss[$ndx][0]=='n')
 				$v = floatval($v);
-			if( ($ss[$ndx]=="sdirectory") && !rTorrentSettings::get()->correctDirectory($v) )
-				continue;
+			// A download added without a directory of its own is written
+			// there through any link along it, so it has to stay inside the
+			// top directory once they are followed, not only as written.
+			if( $ss[$ndx]=="sdirectory" )
+			{
+				require_once( '../../php/rtorrent.php' );
+				if( !rTorrentSettings::get()->correctDirectory($v) || !rTorrent::isInsideTopDirectory($v) )
+					continue;
+			}
+			$socketAlloc = rTorrentSettings::get()->getSocketAllocCategory($ss[$ndx]);
 			if($ss[$ndx]=="ndht")
 				$cmd = new rXMLRPCCommand('dht',(($v==0) ? "disable" : "auto"));
 			else
+			if($socketAlloc!==null)
+			{
+				$req->addCommand(new rXMLRPCCommand(
+					"system.sockets.".$socketAlloc.".min_alloc.set",array("",$v)));
+				$cmd = new rXMLRPCCommand(
+					"system.sockets.".$socketAlloc.".max_alloc.set",array("",$v));
+				$socketCategories[$socketAlloc] = true;
+			}
+			else
 				$cmd = new rXMLRPCCommand('set_'.substr($ss[$ndx],1),$v);
 			$req->addCommand($cmd);
+			$logNames[] = substr($ss[$ndx],1);
+			$logValues[] = $v;
+		}
+		$socketCategories = array_keys($socketCategories);
+		// The staged min_alloc/max_alloc values only take effect once the
+		// socket manager recomputes its allocation. Send it once per batch,
+		// having first read the bounds it would replace.
+		$savedAlloc = array();
+		if(count($socketCategories))
+		{
+			$savedAlloc = getSocketAlloc($socketCategories);
+			$req->addCommand(new rXMLRPCCommand("system.sockets.adjust_alloc"));
 		}
 		if($req->getCommandsCount())
 		{
-			if($req->success(false))
+			$before = readSettingValues($logNames);
+			$accepted = $req->success(true);
+			if($accepted)
 		        	$result = $req->val;
+			else
+			if(count($savedAlloc))
+				restoreSocketAlloc($savedAlloc);
+			logSettingsWrite($logNames,$logValues,$before,
+				readSettingValues($logNames),$accepted,$req->faultString);
         	}
         	else
 	        	$result = array();
@@ -399,21 +651,21 @@ switch($mode)
 			}
 			$req->addCommand($cmd);
 		}
-		if($req->success(false))
+		if($req->success(true))
 	        	$result = $req->val;
 		break;
 	}
 	case "setul":	/**/
 	{
 		$req = new rXMLRPCRequest( new rXMLRPCCommand("set_upload_rate", $ss[0]) );
-		if($req->success(false))
+		if($req->success(true))
 	        	$result = $req->val;
 		break;
 	}
 	case "setdl":	/**/
 	{
 		$req = new rXMLRPCRequest( new rXMLRPCCommand("set_download_rate", $ss[0]) );
-		if($req->success(false))
+		if($req->success(true))
 	        	$result = $req->val;
 		break;
 	}
@@ -424,7 +676,7 @@ switch($mode)
 		$req = new rXMLRPCRequest();
                 foreach($vs as $v)
 			$req->addCommand( new rXMLRPCCommand("p.snubbed.set", array($hash[0].":p".$v,$on)) );
-		if($req->success(false))
+		if($req->success(true))
 	        	$result = $req->val;
 		break;
 	}
@@ -436,7 +688,7 @@ switch($mode)
 			$req->addCommand( new rXMLRPCCommand("p.banned.set", array($hash[0].":p".$v,1)) );
 			$req->addCommand( new rXMLRPCCommand("p.disconnect", $hash[0].":p".$v) );
 		}
-		if($req->success(false))
+		if($req->success(true))
 	        	$result = $req->val;
 		break;
 	}
@@ -445,7 +697,7 @@ switch($mode)
 		$req = new rXMLRPCRequest();
                 foreach($vs as $v)
 			$req->addCommand( new rXMLRPCCommand("p.disconnect", $hash[0].":p".$v) );
-		if($req->success(false))
+		if($req->success(true))
 	        	$result = $req->val;
 		break;
 	}
@@ -453,7 +705,7 @@ switch($mode)
 	{
 		$req = new rXMLRPCRequest(
 			new rXMLRPCCommand( "add_peer", array($hash[0], $vs[0]) ) );
-		if($req->success(false))
+		if($req->success(true))
 	        	$result = $req->val;
 		break;
 	}
@@ -465,7 +717,7 @@ switch($mode)
 			new rXMLRPCCommand( "d.get_size_chunks", $hash[0] ) ));
 		if(rTorrentSettings::get()->apiVersion>=4)
 			$req->addCommand(new rXMLRPCCommand( "d.chunks_seen", $hash[0] ));
-		if($req->success(false))
+		if($req->success(true))
 		{
 	        	$result = array( "chunks"=>$req->val[0], "size"=>$req->val[1], "tsize"=>$req->val[2] );
 			if(rTorrentSettings::get()->apiVersion>=4)
@@ -477,23 +729,116 @@ switch($mode)
 	{
 		if(isset($HTTP_RAW_POST_DATA))
 		{
-			$result = rXMLRPCRequest::send($HTTP_RAW_POST_DATA,false);
-			if(!empty($result))
+			// The policy is shared with rpc2.php: one statement of what a
+			// caller may name, for every door that reaches rtorrent through
+			// this filter. The plugin conf is evaluated after it, so a
+			// deployment that means this door to differ still says so there.
+			$policyFile = dirname(__FILE__).'/../../conf/xmlrpc_proxy.php';
+			if(is_file($policyFile) && is_readable($policyFile))
+				require_once($policyFile);
+			eval(FileUtil::getPluginConf('httprpc'));
+			$proxyMode = isset($XMLRPCProxy) ? $XMLRPCProxy : 'sanitize';
+			$proxyLog = isset($XMLRPCProxyLog) ? $XMLRPCProxyLog : true;
+			$proxySafeParams = isset($XMLRPCProxySafeParams) ? $XMLRPCProxySafeParams : array();
+			// With no policy at all every command parameter is stripped, which
+			// costs a client its labels and directories and looks to it like a
+			// client problem. Name the cause instead.
+			if($proxyLog && (count($proxySafeParams) == 0))
+				FileUtil::toLog("xmlrpc-proxy: no \$XMLRPCProxySafeParams is defined in "
+					."conf/xmlrpc_proxy.php or plugins/httprpc/conf.php");
+			$proxyLocalPaths = isset($XMLRPCProxyAllowLocalPaths) ? $XMLRPCProxyAllowLocalPaths : false;
+			// d.directory.set names the directory rtorrent writes a download
+			// into, and the caller supplies the torrent, so it names the file
+			// too. Confine it to the same boundary the panel already holds
+			// itself to: correctDirectory() is applied to the directory in
+			// sendTorrent(), in addtorrent.php, and to sdirectory in the
+			// setsettings branch above. Raw XMLRPC reached rtorrent without it.
+			//
+			// $topDirectory is a global by now -- php/util.php requires
+			// conf/config.php, and php/xmlrpc.php requires util.php. Where it is
+			// "/" this permits everything, which is what the panel permits with
+			// that setting too; this makes the two doors agree rather than
+			// making one stricter.
+			$proxyOptions = array('directory' => array(
+				'root' => (isset($topDirectory) && ($topDirectory !== ''))
+					? $topDirectory : '/',
+				'resolve' => 'httprpcResolvePath',
+			));
+			// decide() here, not process(): this endpoint owns its own
+			// connection to rtorrent, and process()'s null return cannot tell a
+			// call this filter refused from one rtorrent could not answer. That
+			// is what rpc2.php does with the same policy.
+			if($HTTP_RAW_POST_DATA === false)
 			{
-				$pos = strpos($result, "\r\n\r\n");
-				if($pos !== false)
-					$result = substr($result,$pos+4);
-				CachedEcho::send($result, "text/xml");
+				if($proxyLog)
+					FileUtil::toLog("xmlrpc-proxy: could not read request body");
+				header("HTTP/1.0 400 Bad Request");
+				CachedEcho::send("Could not read XMLRPC request.", "text/html");
+				exit;
 			}
+			if($HTTP_RAW_POST_DATA === '')
+			{
+				if($proxyLog)
+					FileUtil::toLog("xmlrpc-proxy: empty request body");
+				header("HTTP/1.0 400 Bad Request");
+				CachedEcho::send("Empty XMLRPC request.", "text/html");
+				exit;
+			}
+			$decision = XMLRPCProxy::decide($HTTP_RAW_POST_DATA, $proxyMode, $proxySafeParams, $proxyLocalPaths, $proxyOptions);
+			if($proxyLog)
+				foreach($decision['log'] as $line)
+					FileUtil::toLog("xmlrpc-proxy: ".$line);
+			if($decision['action'] !== 'send')
+			{
+				// This filter refused the call; rtorrent never saw it. Name the
+				// command and say this server refused it, the 403/-501 rpc2.php
+				// answers for the same refusals -- not "is rtorrent running",
+				// which sends the client to restart a client that is up.
+				header("HTTP/1.0 403 Forbidden");
+				CachedEcho::send(XMLRPCProxy::rejectionFault($decision['method']), "text/xml");
+				exit;
+			}
+			$result = rXMLRPCRequest::send($decision['payload'], $decision['trusted'], $failure,
+				rSCGITransport::RESPONSE_BODY);
+			if($result === false)
+			{
+				header("HTTP/1.0 500 Server Error");
+				CachedEcho::send("Could not complete the rTorrent XMLRPC request.", "text/html");
+				exit;
+			}
+			CachedEcho::send($result, "text/xml");
 		}
 		break;
 	}
+}
+}
+catch(rXMLRPCInvalidCommandName $e)
+{
+	$result = null;
+	$refused = true;
+	// The name itself only ever reaches the log, and with anything that is not
+	// printable ASCII replaced, so that it cannot forge a line there or be
+	// reflected into the answer.
+	FileUtil::toLog("httprpc: ".preg_replace('/[^\x20-\x7e]/','.',$e->getMessage()));
 }
 
 if(is_null($result))
 {
 	header("HTTP/1.0 500 Server Error");
-	CachedEcho::send( (isset($req) && $req->fault) ? "Warning: XMLRPC call is failed." : "Link to XMLRPC failed. Maybe, rTorrent is down?","text/html");
+	$message = "Could not reach rTorrent over XMLRPC. Is rTorrent running?";
+	if($refused)
+		$message = "Refused: not an rtorrent command name.";
+	else
+	if(isset($req) && $req->fault)
+		$message = ($req->faultString==='') ? "Warning: the XMLRPC call failed." : $req->faultString;
+	else
+		// The sentence above is what a person reads, and it stays free to be
+		// reworded, translated or wrapped. This names the same answer for a
+		// program, so a client can tell this door from any other 500 without
+		// matching prose. It is sent on this branch alone: a refusal and a
+		// fault came back from a daemon that answered.
+		header("X-rTorrent-State: unreachable");
+	CachedEcho::send($message,"text/html");
 }
 else
 	CachedEcho::send(JSON::safeEncode($result),"application/json");

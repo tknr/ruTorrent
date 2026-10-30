@@ -135,9 +135,9 @@ switch($cmd)
 
 		if(isset($_REQUEST['rss']))
 			$hash = $_REQUEST['rss'];
-		if(isset($_REQUEST['pattern']))		
+		if(isset($_REQUEST['pattern']))
 			$pattern = trim($_REQUEST['pattern']);
-		if(isset($_REQUEST['exclude']))		
+		if(isset($_REQUEST['exclude']))
 			$exclude = trim($_REQUEST['exclude']);
 		if(isset($_REQUEST['chktitle']))
 			$checkTitle = $_REQUEST['chktitle'];
@@ -314,7 +314,7 @@ switch($cmd)
 			$vars = explode('&', $HTTP_RAW_POST_DATA);
 			$lbl = null;
 			$dir = null;
-			$isStart = true; 
+			$isStart = true;
 			$isAddPath = true;
 			$curRSS = null;
 			$rssArray = array();
@@ -334,7 +334,11 @@ switch($cmd)
 					$lbl = rawurldecode($parts[1]);
 				else
 				if($parts[0]=="rss")
-					$curRSS = $parts[1];
+					// The key chooses which cache file is read, so it has to
+					// name a feed this install has rather than merely look
+					// like one. An unknown key adds nothing.
+					$curRSS = (isset($parts[1]) &&
+						$mngr->rssList->isExist($parts[1])) ? $parts[1] : null;
 				else
 				if(($parts[0]=="url") && $curRSS)
 				{

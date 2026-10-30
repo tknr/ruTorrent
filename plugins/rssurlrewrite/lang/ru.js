@@ -3,12 +3,12 @@
  *
  * Russian language file.
  *
- * Author: 
+ * Author:
  */
 
  theUILang.rssNewRule		= "Новое правило";
  theUILang.mnu_rssurlrewrite	= "Замена URL в RSS";
- theUILang.rssRulesManager	= "Менеджер правил";
+ theUILang.rssRulesManager	= "Менеджер правил RSS";
  theUILang.rssAddRule		= "Добавить";
  theUILang.rssDelRule		= "Удалить";
  theUILang.rssCheckRule		= "?";

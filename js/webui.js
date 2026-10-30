@@ -4,7 +4,7 @@
  */
 
 var theWebUI = {
-	version: "5.2.10",
+	version: "5.3.20",
 	tables: {
 		trt: {
 			obj: new dxSTable(),
@@ -20,12 +20,14 @@ var theWebUI = {
 				{ text: theUILang.UL, 			width: "70px", 	id: "ul",		type: TYPE_NUMBER },
 				{ text: theUILang.ETA, 			width: "60px", 	id: "eta",		type: TYPE_NUMBER },
 				{ text: theUILang.Label, 		width: "60px", 	id: "label",		type: TYPE_STRING },
-				{ text: theUILang.Peers, 		width: "60px", 	id: "peers",		type: TYPE_PEERS },
-				{ text: theUILang.Seeds, 		width: "60px", 	id: "seeds",		type: TYPE_SEEDS },
+				{ text: theUILang.Peers, 		width: "60px", 	id: "peers",		type: TYPE_PEERS,	"align" : ALIGN_RIGHT},
+				{ text: theUILang.Seeds, 		width: "60px", 	id: "seeds",		type: TYPE_SEEDS,	"align" : ALIGN_RIGHT},
 				{ text: theUILang.Priority, 		width: "80px", 	id: "priority",		type: TYPE_NUMBER },
 				{ text: theUILang.Created_on,		width: "110px", id: "created",		type: TYPE_NUMBER },
 				{ text: theUILang.Remaining, 		width: "90px", 	id: "remaining",	type: TYPE_NUMBER },
-				{ text: theUILang.Save_path,		width: "200px", id: "save_path",	type: TYPE_STRING }
+				// titled: a save path is routinely wider than the column, and it
+				// is the value a user most often needs to read in full.
+				{ text: theUILang.Save_path,		width: "200px", id: "save_path",	type: TYPE_STRING, titled: true }
 			],
 			container:	"List",
 			format:		theFormatter.torrents,
@@ -95,7 +97,7 @@ var theWebUI = {
 			ondblclick:	function(obj) {
 				const queryUrl = theWebUI.getPeerIpQueryUrl(obj.id);
 				if (queryUrl !== '#')
-					window.open(queryUrl, "_blank");
+					openInNewTab(queryUrl);
 				return false;
 			}
 		},
@@ -122,6 +124,7 @@ var theWebUI = {
 		"webui.reqtimeout":		10000,
 		"webui.confirm_when_deleting":	1,
 		"webui.alternate_color":	0,
+		"webui.compact_rows":		0,
 		"webui.side_panel_min_width": 	200,
 		"webui.side_panel_max_width_percent": 35,
 		"webui.list_table_min_height": 	300,
@@ -148,6 +151,7 @@ var theWebUI = {
 		"webui.timeformat":		0,
 		"webui.dateformat":		0,
 		"webui.speedintitle":		0,
+		"webui.normalize_torrent_name":	0,
 		"webui.speedgraph.max_seconds": 600,
 		"webui.log_autoswitch":		1,
 		"webui.labelsize_rightalign":		0,
@@ -223,7 +227,7 @@ var theWebUI = {
 //
 
 	init: function() {
-		log("WebUI started.");
+		log(theUILang.webUIStarted);
 		this.setStatusUpdate();
 		if (browser.isOldIE)
 			this.msg(theUILang.Doesnt_support);
@@ -347,7 +351,7 @@ var theWebUI = {
 		correctContent();
 		this.updateServerTime();
 		window.setInterval( this.updateServerTime, 1000 );
-		
+
 		// Mark plugins as done loading. Initialize UI if JSON file is loaded
 		this.pluginsLoaded = true;
 		this.initFinish();
@@ -367,7 +371,7 @@ var theWebUI = {
 			this.update();
 		}
 	},
-	
+
 	createSpeedGraph: function()
 	{
 		const speedTab = $("#Speed");
@@ -456,6 +460,10 @@ var theWebUI = {
 //		this.setStatusUpdate();
 		$.each(this.tables, function(ndx,table)
 		{
+			// is torrent name normalizing enabled?
+			if (ndx === 'trt' && theWebUI.settings["webui.normalize_torrent_name"]) {
+				table.columns.find(c => c.id === 'name').type = TYPE_STRING_LABEL;
+			}
 			table.obj.create($$(table.container), table.columns, ndx);
 			// legacy support of numeric sortId, sortId2
 			for(const name of ['sortId', 'sortId2']) {
@@ -466,6 +474,7 @@ var theWebUI = {
 			}
 		});
 		$(".stable").toggleClass("alternate", !!theWebUI.settings["webui.alternate_color"]);
+		$("body").toggleClass("compact", !!theWebUI.settings["webui.compact_rows"]);
 		table = this.getTable("plg");
 		if(table)
 		{
@@ -547,29 +556,29 @@ var theWebUI = {
 		        theContextMenu.clear();
 		        if(this.getTable("plg").selCount > 1)
 		        {
-				theContextMenu.add([theUILang.plgShutdown, "theWebUI.plgShutdown()"]);
+				theContextMenu.add([theUILang.plgShutdown, () => theWebUI.plgShutdown()]);
 				theContextMenu.add([CMENU_CHILD, theUILang.plgLaunch,
 					[
-						[theUILang.EnableTracker, "theWebUI.plgLaunch(true)"],
-						[theUILang.DisableTracker, "theWebUI.plgLaunch(false)"]
+						[theUILang.EnableTracker, () => theWebUI.plgLaunch(true)],
+						[theUILang.DisableTracker, () => theWebUI.plgLaunch(false)]
 					]]);
 			}
 			else
 			{
 				var plugin = thePlugins.get(id.substr(5));
-				theContextMenu.add([theUILang.plgShutdown, (plugin.enabled && plugin.canShutdown()) ? "theWebUI.plgShutdown()" : null]);
+				theContextMenu.add([theUILang.plgShutdown, (plugin.enabled && plugin.canShutdown()) ? () => theWebUI.plgShutdown() : null]);
 				theContextMenu.add([CMENU_CHILD, theUILang.plgLaunch,
 					[
-						[theUILang.EnableTracker, !plugin.launched && plugin.canBeLaunched() ? "theWebUI.plgLaunch(true)" : null],
-						[theUILang.DisableTracker, plugin.launched && plugin.canBeLaunched() ? "theWebUI.plgLaunch(false)" : null]
+						[theUILang.EnableTracker, !plugin.launched && plugin.canBeLaunched() ? () => theWebUI.plgLaunch(true) : null],
+						[theUILang.DisableTracker, plugin.launched && plugin.canBeLaunched() ? () => theWebUI.plgLaunch(false) : null]
 					]]);
 				if(plugin.help)
 				{
 					theContextMenu.add([CMENU_SEP]);
-					theContextMenu.add([theUILang.Help, "window.open('"+plugin.help+"', '_blank')" ]);
+					theContextMenu.add([theUILang.Help, () => openExternalURL(plugin.help) ]);
 				}
 			}
-	   		theContextMenu.show();
+	   		theContextMenu.show(e.clientX,e.clientY);
 			return(true);
 		}
 		return(false);
@@ -631,12 +640,12 @@ var theWebUI = {
 	{
 		// Add webui settings for the first time
 		this.addSettings(newSettings);
-		
+
 		// Mark JSON file as loaded. Initialize UI if plugins are loaded
 		this.jsonLoaded = true;
 		this.initFinish();
 	},
-	
+
 	addSettings: function(newSettings)
 	{
 		$.each(newSettings, function(i,v)
@@ -677,7 +686,7 @@ var theWebUI = {
 					switch(i)
 					{
 					        case "max_memory_usage":
-              						v /= 1024;
+              						v /= 1024;  // falls through
 						case "upload_rate":
 						case "download_rate":
               						v /= 1024;
@@ -690,31 +699,131 @@ var theWebUI = {
 		});
 		if($type(this.settings["webui.search"]))
 			theSearchEngines.set(this.settings["webui.search"],true);
+		this.showSocketAllocBudget();
    	},
 
+	// rtorrent only accepts an open files/HTTP pair that fits the socket
+	// manager's budget, and refuses the whole write otherwise. Report the
+	// limit next to the fields rather than let it be discovered by failing.
+	socketAllocBudget: function()
+	{
+		// loadSettings() also runs before getplugins.php has filled in systemInfo.
+		if(!$type(this.systemInfo) || !$type(this.systemInfo.rTorrent))
+			return(0);
+		return(iv(this.systemInfo.rTorrent.socketAllocBudget));
+	},
+
+	socketAllocLimit: function(name)
+	{
+		if(!$type(this.systemInfo) || !$type(this.systemInfo.rTorrent))
+			return(0);
+		return(iv(this.systemInfo.rTorrent[name]));
+	},
+
+	showSocketAllocBudget: function()
+	{
+		var budget = this.socketAllocBudget();
+		if(!budget)
+			return;
+		$('#socket_alloc_budget').text(theUILang.Glob_alloc_budget+' '+budget+'.');
+		$('#socket_alloc_budget_row').show();
+	},
+
+	// A numeric setting travels as an XMLRPC integer, which holds a finite
+	// number within 64 bits. Anything else is refused here, before any part
+	// of the batch is sent.
+	numbersAccepted: function(values)
+	{
+		if(!values.length)
+			return(true);
+		noty(theUILang.Glob_number_refused+' ('+values.join(', ')+').','error');
+		return(false);
+	},
+
+	socketAllocationAccepted: function()
+	{
+		var filesField = $('#max_open_files');
+		var httpField = $('#max_open_http');
+
+		// The Connection page is removed for users without the permission, so
+		// the fields are absent rather than empty and there is nothing to check.
+		if(!filesField.length || !httpField.length)
+			return(true);
+
+		// A cleared numeric field means "leave unchanged". Validate the last
+		// known value so another setting can still be saved in the same pass.
+		var filesValue = filesField.val();
+		var httpValue = httpField.val();
+		var files = iv(filesValue==="" ? this.settings.max_open_files : filesValue);
+		var http = iv(httpValue==="" ? this.settings.max_open_http : httpValue);
+		var filesMin = this.socketAllocLimit('socketFilesAllocMin');
+		var filesMax = this.socketAllocLimit('socketFilesAllocMax');
+		var httpMax = this.socketAllocLimit('socketHttpAllocMax');
+
+		if(filesMin && (files<filesMin))
+		{
+			noty(theUILang.Glob_alloc_files_min+' '+filesMin+' ('+files+').','error');
+			return(false);
+		}
+		if(filesMax && (files>filesMax))
+		{
+			noty(theUILang.Glob_alloc_files_max+' '+filesMax+' ('+files+').','error');
+			return(false);
+		}
+		if(httpMax && (http>httpMax))
+		{
+			noty(theUILang.Glob_alloc_http_max+' '+httpMax+' ('+http+').','error');
+			return(false);
+		}
+		if(!socketAllocationFits(this.socketAllocBudget(),files,http))
+		{
+			noty(theUILang.Glob_alloc_exceeded+' '+this.socketAllocBudget()+' ('+(files+http)+').','error');
+			return(false);
+		}
+		return(true);
+	},
+
 	setSettings: function() {
+		// Serialize only this browser's Save/restore/refresh chain. rTorrent does
+		// not provide a transaction boundary against another client.
+		if(this.settingsSavePending)
+			return;
 		var req = '';
 		var needSave = false;
 		var needResize = false;
 		let needCatListSync = false;
 		var reply = null;
+		var pendingRTorrentSettings = {};
+		var unrepresentableNumbers = [];
+		var emptyLimitLeavesUnchanged = {
+			max_uploads_global: true,
+			max_downloads_global: true,
+			max_memory_usage: true,
+			max_open_files: true,
+			max_open_http: true
+		};
 		$.each(this.settings, function(i,v) {
 			var o = $$(i);
 			if (o) {
 				o = $(o);
+				var numericInput = o.hasClass("num") || o.is("input[type=number]");
 				var nv = o.is("input:checkbox") ? (o.prop('checked') ? 1 : 0) : o.val();
+				// Clearing one of these five rTorrent limits is not an instruction to
+				// write zero. Other numeric inputs may use empty as a real UI sentinel.
+				if(nv==="" && emptyLimitLeavesUnchanged[i]===true)
+					return;
 				switch(i) {
 					case "max_memory_usage":
-						nv *= 1024;
+						nv *= 1024;  // falls through
 					case "upload_rate":
 					case "download_rate":
 						nv *= 1024;
 				}
 				if(nv!=v)
 				{
-					theWebUI.settings[i] = nv;
 					if((/^webui\./).test(i))
 					{
+						theWebUI.settings[i] = nv;
 						needSave = true;
 						switch(i) {
 						        case "webui.effects":
@@ -724,6 +833,10 @@ var theWebUI = {
 							}
 							case "webui.alternate_color": {
 								$(".stable").toggleClass("alternate", !!nv);
+								break;
+							}
+							case "webui.compact_rows": {
+								$("body").toggleClass("compact", !!nv);
 								break;
 							}
 							case "webui.show_cats": {
@@ -744,6 +857,7 @@ var theWebUI = {
 								break;
 							}
 							case "webui.register_magnet":
+							case "webui.normalize_torrent_name":
 							{
 								reply = theWebUI.reload;
 								break;
@@ -792,7 +906,16 @@ var theWebUI = {
 					}
 					else
 					{
-						var k_type = o.is("input:checkbox") || o.is("select") || o.hasClass("num") ? "n" : "s";
+						// Keep the read-back model at daemon-confirmed values until the
+						// entire rTorrent batch passes local preflight and is actually sent.
+						pendingRTorrentSettings[i] = nv;
+						// A number input is a numeric setting whether or not it also
+						// carries the legacy "num" class, and the prefix decides both
+						// the cast in action.php and which settings take the socket
+						// allocation path.
+						var k_type = o.is("input:checkbox") || o.is("select") || numericInput ? "n" : "s";
+						if(numericInput && (nv!=="") && (xmlrpcInteger(nv)===null))
+							unrepresentableNumbers.push(nv);
 						req+=("&s="+k_type+i+"&v="+nv);
 					}
 				}
@@ -806,10 +929,72 @@ var theWebUI = {
 		}
 		if(needResize)
 			this.resize();
-		if((req.length>0) && theWebUI.systemInfo.rTorrent.started)
-			this.request("?action=setsettings" + req,null,true);
-		if(needSave)
+		if((req.length>0) && theWebUI.systemInfo.rTorrent.started &&
+			this.numbersAccepted(unrepresentableNumbers) &&
+			this.socketAllocationAccepted())
+		{
+			$.each(pendingRTorrentSettings, function(i,v) { theWebUI.settings[i] = v; });
+			this.settingsSavePending = true;
+			this.setSettingsSaveButtons(true);
+			this.deferredSettingsSave = needSave ? { reply: reply } : null;
+			var request = new rTorrentStub(this.url + "?action=setsettings" + req);
+			request.onSetsettingsFailure = function() { theWebUI.refreshSettingsAfterFailedSave(); };
+			request.onIndeterminateFailure = function() { theWebUI.finishSettingsSaveIndeterminate(); };
+			this.request(request,[this.finishSettingsSave, this],true);
+		}
+		else if(needSave)
 			this.save(reply);
+	},
+
+	finishSettingsSave: function()
+	{
+		var deferredSave = this.deferredSettingsSave;
+		this.deferredSettingsSave = null;
+		if(deferredSave)
+			this.save(deferredSave.reply, this.releaseSettingsSave.bind(this));
+		else
+			this.releaseSettingsSave();
+	},
+
+	releaseSettingsSave: function()
+	{
+		$("#settings_save_indeterminate").empty().hide();
+		this.settingsSavePending = false;
+		this.setSettingsSaveButtons(false);
+	},
+
+	finishSettingsSaveIndeterminate: function()
+	{
+		// Do not let a deferred reload erase the only same-document lock while the
+		// server may still be applying the write or its restore.
+		this.deferredSettingsSave = null;
+		var message = theUILang.Settings_save_indeterminate;
+		var persistent = $("#settings_save_indeterminate");
+		if(!persistent.length)
+			persistent = $("<div>").attr({id:"settings_save_indeterminate",role:"alert","aria-live":"assertive"})
+				.addClass("alert alert-danger").insertBefore("#st_btns");
+		persistent.text(message).show();
+		noty(message,"error");
+	},
+
+	setSettingsSaveButtons: function(disabled)
+	{
+		$("#st_btns").find("button").not(".Cancel").prop("disabled", disabled);
+	},
+
+	refreshSettingsAfterFailedSave: function()
+	{
+		var request = new rTorrentStub(this.url + "?action=getsettings");
+		request.onXMLFailure = this.finishSettingsSave.bind(this);
+		this.requestWithTimeout(request, [this.finishSettingsRefresh, this],
+			function() { theWebUI.timeout(); theWebUI.finishSettingsSave(); },
+			function(status, text, state) { theWebUI.error(status, text, state); theWebUI.finishSettingsSave(); }, true);
+	},
+
+	finishSettingsRefresh: function(data)
+	{
+		this.addSettings(data);
+		this.finishSettingsSave();
 	},
 
    	reload: function()
@@ -837,10 +1022,14 @@ var theWebUI = {
 		theDialogManager.show("stg");
 	},
 
-        save: function(reply)
+	save: function(reply, onTerminal)
 	{
-	        if(!theWebUI.configured)
+		if(!theWebUI.configured)
+		{
+			if(onTerminal)
+				onTerminal();
 			return;
+		}
 	        $.each(theWebUI.tables, function(ndx,table)
 		{
 	   		var width = [];
@@ -868,7 +1057,27 @@ var theWebUI = {
 				cookie[i] = v;
 		}
 		// We must encode the URL here to avoid injection with the "&" symbol from search results
-		theWebUI.request("?action=setuisettings&v=" + encodeURIComponent(JSON.stringify(cookie),reply));
+		var query = "?action=setuisettings&v=" + encodeURIComponent(JSON.stringify(cookie));
+		if(onTerminal)
+		{
+			var finished = false;
+			var finish = function()
+			{
+				if(!finished)
+				{
+					finished = true;
+					onTerminal();
+				}
+			};
+			var request = new rTorrentStub(theWebUI.url + query);
+			request.handleUnauthorizedAsError = true;
+			theWebUI.requestWithTimeout(request,
+				function(data) { try { if(reply) reply(data); } finally { finish(); } },
+				function() { try { theWebUI.timeout(); } finally { finish(); } },
+				function(status, text, state) { try { theWebUI.error(status, text, state); } finally { finish(); } });
+		}
+		else
+			theWebUI.request(query, reply);
 	},
 
 //
@@ -894,6 +1103,12 @@ var theWebUI = {
 
 	addPeers: function(data, hash)
 	{
+		// A getpeers answer can arrive after its torrent stopped being shown,
+		// or after it disappeared from the list entirely. Ignore a hash we no
+		// longer know: caching it would leak, because the cleanup loop below
+		// only walks the torrents that are still there.
+		if (!Object.prototype.hasOwnProperty.call(this.torrents, hash))
+			return;
 		const table = this.getTable("prs");
 		for (const peer of Object.values(data))
 		{
@@ -906,16 +1121,18 @@ var theWebUI = {
 			};
 		}
 		this.peers[hash] = data;
+		// Only the shown torrent may touch the peer table. Clearing it here
+		// would wipe the rows of whatever torrent is actually open; the paths
+		// that own that decision -- getPeers() on a fresh open, and
+		// clearDetails() when the details block closes -- clear it themselves.
 		if (this.dID == hash)
 			table.updateRows(this.peers[hash]);
-		else
-			table.clearRows();
 	},
 
 	prsSelect: function(e, id)
 	{
 		if(theWebUI.createPeerMenu(e, id))
-	   		theContextMenu.show();
+	   		theContextMenu.show(e.clientX,e.clientY);
    	},
 
 	getPeerIds: function(cmd)
@@ -959,23 +1176,23 @@ var theWebUI = {
 					(this.torrents[this.dID].private==0) &&
 					this.isTorrentCommandEnabled('addpeer',this.dID) &&
 					(theWebUI.systemInfo.rTorrent.iVersion>=0x804) ?
-					"theDialogManager.show('padd')"	: null]);
+					() => theDialogManager.show('padd')	: null]);
 				ret = true;
 				if(selCount && theWebUI.systemInfo.rTorrent.iVersion>=0x807)
 				{
-					theContextMenu.add([theUILang.peerBan, this.isTorrentCommandEnabled('ban',this.dID) ? "theWebUI.setPeerState('ban')" : null]);
-					theContextMenu.add([theUILang.peerKick, this.isTorrentCommandEnabled('kick',this.dID) ? "theWebUI.setPeerState('kick')" : null]);
+					theContextMenu.add([theUILang.peerBan, this.isTorrentCommandEnabled('ban',this.dID) ? () => theWebUI.setPeerState('ban') : null]);
+					theContextMenu.add([theUILang.peerKick, this.isTorrentCommandEnabled('kick',this.dID) ? () => theWebUI.setPeerState('kick') : null]);
 		   			if(selCount > 1)
 	   				{
-						theContextMenu.add([theUILang.peerSnub, this.isTorrentCommandEnabled('snub',this.dID) ? "theWebUI.setPeerState('snub')" : null]);
-						theContextMenu.add([theUILang.peerUnsnub, this.isTorrentCommandEnabled('unsnub',this.dID) ? "theWebUI.setPeerState('unsnub')" : null]);
+						theContextMenu.add([theUILang.peerSnub, this.isTorrentCommandEnabled('snub',this.dID) ? () => theWebUI.setPeerState('snub') : null]);
+						theContextMenu.add([theUILang.peerUnsnub, this.isTorrentCommandEnabled('unsnub',this.dID) ? () => theWebUI.setPeerState('unsnub') : null]);
 					}
 					else if (id in table.rowdata)
 	                {
 					if(table.getAttr(id, 'snubbed') != 'on')
-      						theContextMenu.add([theUILang.peerSnub, this.isTorrentCommandEnabled('snub',this.dID) ? "theWebUI.setPeerState('snub')" : null]);
+						theContextMenu.add([theUILang.peerSnub, this.isTorrentCommandEnabled('snub',this.dID) ? () => theWebUI.setPeerState('snub') : null]);
 						else
-							theContextMenu.add([theUILang.peerUnsnub, this.isTorrentCommandEnabled('unsnub',this.dID) ? "theWebUI.setPeerState('unsnub')" : null]);
+							theContextMenu.add([theUILang.peerUnsnub, this.isTorrentCommandEnabled('unsnub',this.dID) ? () => theWebUI.setPeerState('unsnub') : null]);
 	      			}
 		        	theContextMenu.add([CMENU_SEP]);
 				}
@@ -1008,8 +1225,8 @@ var theWebUI = {
 		return(
 			(/(http|https|udp):\/\/(?:[0-9]{1,3}\.){3}[0-9]{1,3}((:(\d){2,5})|).*(\/a.*(\?.+=.+|\/.+)|\?.+=.+)/i).test(url) ||
 			(/(http|https|udp):\/\/(?:[0-9]{1,3}\.){3}[0-9]{1,3}((:(\d){2,5})|)\/.*[0-9a-z]{8,32}\/a/i).test(url) ||
-			(/(http|https|udp):\/\/[a-z0-9-\.]+\.[a-z]{2,253}((:(\d){2,5})|).*(\/a.*(\?.+=.+|\/.+)|\?.+=.+)/i).test(url) ||
-			(/(http|https|udp):\/\/[a-z0-9-\.]+\.[a-z]{2,253}((:(\d){2,5})|)\/.*[0-9a-z]{8,32}\/a/i).test(url) ? 1 : 0 );
+			(/(http|https|udp):\/\/[a-z0-9-.]+\.[a-z]{2,253}((:(\d){2,5})|).*(\/a.*(\?.+=.+|\/.+)|\?.+=.+)/i).test(url) ||
+			(/(http|https|udp):\/\/[a-z0-9-.]+\.[a-z]{2,253}((:(\d){2,5})|)\/.*[0-9a-z]{8,32}\/a/i).test(url) ? 1 : 0 );
 	},
 
    	trkSelect: function(e, id)
@@ -1019,7 +1236,7 @@ var theWebUI = {
 			var arr = id.split('_t_');
 	   		var ind = iv(arr[1]);
    			if(theWebUI.createTrackerMenu(e, ind))
-		   		theContextMenu.show();
+		   		theContextMenu.show(e.clientX,e.clientY);
 		}
    	},
 
@@ -1072,26 +1289,26 @@ var theWebUI = {
    		{
 	   		if(this.getTable("trk").selCount > 1)
    			{
-      				theContextMenu.add([theUILang.EnableTracker, this.isTorrentCommandEnabled('trkstate',this.dID) ? "theWebUI.setTrackerState('" + this.dID + "',1)" : null]);
-      				theContextMenu.add([theUILang.DisableTracker, this.isTorrentCommandEnabled('trkstate',this.dID) ? "theWebUI.setTrackerState('" + this.dID + "',0)" : null]);
+				theContextMenu.add([theUILang.EnableTracker, this.isTorrentCommandEnabled('trkstate',this.dID) ? () => theWebUI.setTrackerState(theWebUI.dID,1) : null]);
+				theContextMenu.add([theUILang.DisableTracker, this.isTorrentCommandEnabled('trkstate',this.dID) ? () => theWebUI.setTrackerState(theWebUI.dID,0) : null]);
 	      		}
    			else
    			{
       				if(this.trackers[this.dID][ind].enabled == 0)
 	      			{
-      					theContextMenu.add([theUILang.EnableTracker, this.isTorrentCommandEnabled('trkstate',this.dID) ? "theWebUI.setTrackerState('" + this.dID + "',1)" : null]);
+					theContextMenu.add([theUILang.EnableTracker, this.isTorrentCommandEnabled('trkstate',this.dID) ? () => theWebUI.setTrackerState(theWebUI.dID,1) : null]);
 	      				theContextMenu.add([theUILang.DisableTracker]);
          			}
 	      			else
       				{
 	      				theContextMenu.add([theUILang.EnableTracker]);
-      					theContextMenu.add([theUILang.DisableTracker, this.isTorrentCommandEnabled('trkstate',this.dID) ? "theWebUI.setTrackerState('" + this.dID + "',0)" : null]);
+					theContextMenu.add([theUILang.DisableTracker, this.isTorrentCommandEnabled('trkstate',this.dID) ? () => theWebUI.setTrackerState(theWebUI.dID,0) : null]);
 	         		}
       			}
 			if(theWebUI.systemInfo.rTorrent.iVersion>=0x809)
 			{
 		   		theContextMenu.add([CMENU_SEP]);
-				theContextMenu.add([theUILang.updateTracker, this.isTorrentCommandEnabled("updateTracker",this.dID) ? "theWebUI.updateTracker()" : null]);
+				theContextMenu.add([theUILang.updateTracker, this.isTorrentCommandEnabled("updateTracker",this.dID) ? () => theWebUI.updateTracker() : null]);
 			}
 		}
 		return(true);
@@ -1159,15 +1376,15 @@ var theWebUI = {
 			if(!this.settings["webui.fls.view"] && this.dirs[hash])
 			{
 				var dir = this.dirs[hash].getDirectory();
-				for(var i in dir)
+				for(i in dir)
 				{
 					var entry = dir[i];
 					if(entry.link!=null)
 						table.setRowById(entry.data, i, entry.icon, {link: entry.link});
 				}
-				for(var i in dir)
+				for(i in dir)
 				{
-					var entry = dir[i];
+					entry = dir[i];
 					if(entry.link==null)
 						table.setRowById(entry.data, i, entry.icon, {link: undefined});
 				}
@@ -1210,7 +1427,7 @@ var theWebUI = {
 			else
 				p = theWebUI.dirs[theWebUI.dID].getEntry(id);
    			if(theWebUI.createFileMenu(e, p))
-				theContextMenu.show();
+				theContextMenu.show(e.clientX,e.clientY);
 		}
    	},
 
@@ -1224,18 +1441,18 @@ var theWebUI = {
 		var table = this.getTable("fls");
 		if(table.selCount > 1)
    		{
-      			_bf.push([theUILang.High_priority, "theWebUI.setPriority('" + id + "',2)"]);
-			_bf.push([theUILang.Normal_priority, "theWebUI.setPriority('" + id + "',1)"]);
+			_bf.push([theUILang.High_priority, () => theWebUI.setPriority(id,2)]);
+			_bf.push([theUILang.Normal_priority, () => theWebUI.setPriority(id,1)]);
 			_bf.push([CMENU_SEP]);
-			_bf.push([theUILang.Dont_download, "theWebUI.setPriority('" + id + "',0)"]);
+			_bf.push([theUILang.Dont_download, () => theWebUI.setPriority(id,0)]);
 		}
    		else
 	   		if(p!=null)
    			{
-   			       	_bf.push([theUILang.High_priority, (p.priority == 2) ? null : "theWebUI.setPriority('" + id + "',2)"]);
-	   	        	_bf.push([theUILang.Normal_priority, (p.priority == 1) ? null : "theWebUI.setPriority('" + id + "',1)"]);
+				_bf.push([theUILang.High_priority, (p.priority == 2) ? null : () => theWebUI.setPriority(id,2)]);
+				_bf.push([theUILang.Normal_priority, (p.priority == 1) ? null : () => theWebUI.setPriority(id,1)]);
 	   		        _bf.push([CMENU_SEP]);
-   			        _bf.push([theUILang.Dont_download, (p.priority == 0) ? null : "theWebUI.setPriority('" + id + "',0)"]);
+				_bf.push([theUILang.Dont_download, (p.priority == 0) ? null : () => theWebUI.setPriority(id,0)]);
 	      		}
 	      	if(_bf.length && this.isTorrentCommandEnabled('setprio',this.dID) )
 	      		theContextMenu.add([CMENU_CHILD, theUILang.Priority, _bf]);
@@ -1247,18 +1464,18 @@ var theWebUI = {
 			_bf = [];
 			if(table.selCount > 1)
    			{
-				_bf.push([theUILang.prioritizeNormal, "theWebUI.setPrioritize('" + id + "',0)"]);
+				_bf.push([theUILang.prioritizeNormal, () => theWebUI.setPrioritize(id,0)]);
 				_bf.push([CMENU_SEP]);
-      				_bf.push([theUILang.prioritizeFirst, "theWebUI.setPrioritize('" + id + "',1)"]);
-				_bf.push([theUILang.prioritizeLast, "theWebUI.setPrioritize('" + id + "',2)"]);
+				_bf.push([theUILang.prioritizeFirst, () => theWebUI.setPrioritize(id,1)]);
+				_bf.push([theUILang.prioritizeLast, () => theWebUI.setPrioritize(id,2)]);
 			}
    			else
 	   			if(p!=null)
 	   			{
-					_bf.push([theUILang.prioritizeNormal, !p.prioritize ? null : "theWebUI.setPrioritize('" + id + "',0)"]);
+					_bf.push([theUILang.prioritizeNormal, !p.prioritize ? null : () => theWebUI.setPrioritize(id,0)]);
 					_bf.push([CMENU_SEP]);
-      					_bf.push([theUILang.prioritizeFirst, (p.prioritize == 1) ? null : "theWebUI.setPrioritize('" + id + "',1)"]);
-					_bf.push([theUILang.prioritizeLast, (p.prioritize == 2) ? null : "theWebUI.setPrioritize('" + id + "',2)"]);
+					_bf.push([theUILang.prioritizeFirst, (p.prioritize == 1) ? null : () => theWebUI.setPrioritize(id,1)]);
+					_bf.push([theUILang.prioritizeLast, (p.prioritize == 2) ? null : () => theWebUI.setPrioritize(id,2)]);
 		      		}
 		      	if(_bf.length && this.isTorrentCommandEnabled('setprioritize',this.dID) )
 	      			theContextMenu.add([CMENU_CHILD, theUILang.DLStrategy, _bf]);
@@ -1269,11 +1486,11 @@ var theWebUI = {
 		if(this.settings["webui.fls.view"])
 		{
 			_bf1.push([theUILang.AsList]);
-			_bf1.push([theUILang.AsTree, "theWebUI.toggleFileView()"]);
+			_bf1.push([theUILang.AsTree, () => theWebUI.toggleFileView()]);
 		}
 		else
 		{
-			_bf1.push([theUILang.AsList, "theWebUI.toggleFileView()"]);
+			_bf1.push([theUILang.AsList, () => theWebUI.toggleFileView()]);
 			_bf1.push([theUILang.AsTree]);
 		}
 		theContextMenu.add([CMENU_CHILD, theUILang.View, _bf1]);
@@ -1313,7 +1530,7 @@ var theWebUI = {
 				        var dir = theWebUI.dirs[id];
 				        var ids = new Array();
 				        dir.getFilesIds(ids,dir.current,k,p);
-				        for(var i in ids)
+				        for(i in ids)
 						str += "&f=" + ids[i];
 					needSort = true;
         			}
@@ -1369,36 +1586,36 @@ var theWebUI = {
    		theContextMenu.clear();
    		if(table.selCount > 1)
    		{
-			theContextMenu.add([CMENU_SEL, theUILang.Torrents + ": " + table.selCount, "theWebUI.trtDeselect()"]);
+			theContextMenu.add([CMENU_SEL, theUILang.Torrents + ": " + table.selCount, () => theWebUI.trtDeselect()]);
 			theContextMenu.add([CMENU_SEP]);
-      			theContextMenu.add([theUILang.Start, "theWebUI.start()"]);
-      			theContextMenu.add([theUILang.Pause, "theWebUI.pause()"]);
-      			theContextMenu.add([theUILang.Stop, "theWebUI.stop()"]);
-      			theContextMenu.add([theUILang.Force_recheck, "theWebUI.recheck()"]);
+			theContextMenu.add([theUILang.Start, () => theWebUI.start()]);
+			theContextMenu.add([theUILang.Pause, () => theWebUI.pause()]);
+			theContextMenu.add([theUILang.Stop, () => theWebUI.stop()]);
+			theContextMenu.add([theUILang.Force_recheck, () => theWebUI.recheck()]);
 			theContextMenu.add([theUILang.peerAdd]);
    		}
    		else
    		{
-			theContextMenu.add([CMENU_SEL, theUILang.Torrents + ": 1", "theWebUI.trtDeselect()"]);
+			theContextMenu.add([CMENU_SEL, theUILang.Torrents + ": 1", () => theWebUI.trtDeselect()]);
 			theContextMenu.add([CMENU_SEP]);
-   			theContextMenu.add([theUILang.Start, this.isTorrentCommandEnabled("start",id) ? "theWebUI.start()" : null]);
-   			theContextMenu.add([theUILang.Pause, (this.isTorrentCommandEnabled("pause",id) || this.isTorrentCommandEnabled("unpause",id)) ? "theWebUI.pause()" : null]);
-   			theContextMenu.add([theUILang.Stop, this.isTorrentCommandEnabled("stop",id) ? "theWebUI.stop()" : null]);
-			theContextMenu.add([theUILang.Force_recheck, this.isTorrentCommandEnabled("recheck",id) ? "theWebUI.recheck()" : null]);
+			theContextMenu.add([theUILang.Start, this.isTorrentCommandEnabled("start",id) ? () => theWebUI.start() : null]);
+			theContextMenu.add([theUILang.Pause, (this.isTorrentCommandEnabled("pause",id) || this.isTorrentCommandEnabled("unpause",id)) ? () => theWebUI.pause() : null]);
+			theContextMenu.add([theUILang.Stop, this.isTorrentCommandEnabled("stop",id) ? () => theWebUI.stop() : null]);
+			theContextMenu.add([theUILang.Force_recheck, this.isTorrentCommandEnabled("recheck",id) ? () => theWebUI.recheck() : null]);
 			theContextMenu.add([theUILang.peerAdd,
 				(!this.isTorrentCommandEnabled("start",id) &&
 				this.isTorrentCommandEnabled("addpeer",id) &&
 				$type(this.torrents[id]) &&
 				(this.torrents[id].private==0) && (theWebUI.systemInfo.rTorrent.iVersion>=0x804)) ?
-				"theDialogManager.show('padd')"	: null]);
+				() => theDialogManager.show('padd')	: null]);
 		}
-		theContextMenu.add([theUILang.Recreate_files, this.isTorrentCommandEnabled("recreate",id) ? "theWebUI.recreate()" : null]);
+		theContextMenu.add([theUILang.Recreate_files, this.isTorrentCommandEnabled("recreate",id) ? () => theWebUI.recreate() : null]);
 		if(theWebUI.systemInfo.rTorrent.iVersion>=0x809)
-			theContextMenu.add([theUILang.updateTracker, this.isTorrentCommandEnabled("updateTracker",id) ? "theWebUI.updateTracker()" : null]);
+			theContextMenu.add([theUILang.updateTracker, this.isTorrentCommandEnabled("updateTracker",id) ? () => theWebUI.updateTracker() : null]);
    		theContextMenu.add([CMENU_SEP]);
    		var _bf = [];
-		_bf.push([theUILang.New_label, (table.selCount > 1) || this.isTorrentCommandEnabled("setlabel",id) ? "theWebUI.newLabel()" : null]);
-   		_bf.push([theUILang.Remove_label, (table.selCount > 1) || this.isTorrentCommandEnabled("setlabel",id) ? "theWebUI.removeLabel()" : null]);
+		_bf.push([theUILang.New_label, (table.selCount > 1) || this.isTorrentCommandEnabled("setlabel",id) ? () => theWebUI.newLabel() : null]);
+		_bf.push([theUILang.Remove_label, (table.selCount > 1) || this.isTorrentCommandEnabled("setlabel",id) ? () => theWebUI.removeLabel() : null]);
    		_bf.push([CMENU_SEP]);
 		for(const [torrentLabel, info]  of theWebUI.categoryList.torrentLabelTree.torrentLabels)
 		{
@@ -1408,22 +1625,22 @@ var theWebUI = {
 			if((table.selCount == 1) && (this.torrents[id].label == torrentLabel))
 				_bf.push([CMENU_SEL, lblText]);
 			else
-				_bf.push([lblText, (table.selCount > 1) || this.isTorrentCommandEnabled("setlabel",id) ? "theWebUI.setLabel('" + addslashes(torrentLabel) + "')" : null]);
+				_bf.push([lblText, (table.selCount > 1) || this.isTorrentCommandEnabled("setlabel",id) ? () => theWebUI.setLabel(torrentLabel) : null]);
 		}
    		theContextMenu.add([CMENU_CHILD, theUILang.Labels, _bf]);
    		theContextMenu.add([CMENU_SEP]);
    		var _c0 = [];
 		if (table.selCount > 1) {
-			_c0.push([theUILang.High_priority, "theWebUI.perform('dsetprio&v=3')"]);
-			_c0.push([theUILang.Normal_priority, "theWebUI.perform('dsetprio&v=2')"]);
-			_c0.push([theUILang.Low_priority,  "theWebUI.perform('dsetprio&v=1')"]);
-			_c0.push([theUILang.Dont_download,  "theWebUI.perform('dsetprio&v=0')"]);
+			_c0.push([theUILang.High_priority, () => theWebUI.perform('dsetprio&v=3')]);
+			_c0.push([theUILang.Normal_priority, () => theWebUI.perform('dsetprio&v=2')]);
+			_c0.push([theUILang.Low_priority,  () => theWebUI.perform('dsetprio&v=1')]);
+			_c0.push([theUILang.Dont_download,  () => theWebUI.perform('dsetprio&v=0')]);
 		} else {
 			var p = this.torrents[id].priority;
-			_c0.push([theUILang.High_priority, (p==3) || !this.isTorrentCommandEnabled("dsetprio",id) ? null : "theWebUI.perform('dsetprio&v=3')"]);
-			_c0.push([theUILang.Normal_priority, (p==2 || !this.isTorrentCommandEnabled("dsetprio",id)) ? null : "theWebUI.perform('dsetprio&v=2')"]);
-			_c0.push([theUILang.Low_priority,  (p==1) || !this.isTorrentCommandEnabled("dsetprio",id) ? null : "theWebUI.perform('dsetprio&v=1')"]);
-			_c0.push([theUILang.Dont_download, (p==0) || !this.isTorrentCommandEnabled("dsetprio",id) ? null : "theWebUI.perform('dsetprio&v=0')"]);
+			_c0.push([theUILang.High_priority, (p==3) || !this.isTorrentCommandEnabled("dsetprio",id) ? null : () => theWebUI.perform('dsetprio&v=3')]);
+			_c0.push([theUILang.Normal_priority, (p==2 || !this.isTorrentCommandEnabled("dsetprio",id)) ? null : () => theWebUI.perform('dsetprio&v=2')]);
+			_c0.push([theUILang.Low_priority,  (p==1) || !this.isTorrentCommandEnabled("dsetprio",id) ? null : () => theWebUI.perform('dsetprio&v=1')]);
+			_c0.push([theUILang.Dont_download, (p==0) || !this.isTorrentCommandEnabled("dsetprio",id) ? null : () => theWebUI.perform('dsetprio&v=0')]);
 		}
 		theContextMenu.add([CMENU_CHILD, theUILang.Priority, _c0]);
 		theContextMenu.add([CMENU_SEP]);
@@ -1437,7 +1654,7 @@ var theWebUI = {
 		if ((table.selCount > 1) || !this.isTorrentCommandEnabled("setprops",id))
 			theContextMenu.add([theUILang.Properties]);
 		else
-			theContextMenu.add([theUILang.Properties, "theWebUI.showProperties('" + id + "')"]);
+			theContextMenu.add([theUILang.Properties, () => theWebUI.showProperties(id)]);
 	},
 
 	/**
@@ -1461,7 +1678,7 @@ var theWebUI = {
 	},
 
 	/**
-	 * Check if an action is enabled to be performed on 
+	 * Check if an action is enabled to be performed on
 	 * a torrent specified by the torrent's hash.
 	 * @param {string} act Action to be checked.
 	 * @param {string} hash Hash of the torrent to be checked.
@@ -1492,8 +1709,8 @@ var theWebUI = {
 	},
 
 	/**
-	 * 
-	 * @param {string} act 
+	 *
+	 * @param {string} act
 	 * @returns {string} Query string of hashes of selected torrents.
 	 */
 	getHashes: function(act) {
@@ -1528,7 +1745,7 @@ var theWebUI = {
 	/**
 	 * Remove selected torrent(s), **without** confirmation.
 	 */
-	remove: function() {		
+	remove: function() {
 		this.perform("remove");
 	},
 
@@ -1565,6 +1782,13 @@ var theWebUI = {
 		this.perform("createqueued");
    	},
 
+	listRequestFailed: function(status,text,state)
+	{
+		this.error(status,text,state);
+		if(this.settings["webui.retry_on_error"])
+			this.setInterval( iv(this.settings["webui.retry_on_error"])*1000 );
+	},
+
 	getTorrents: function(qs)
 	{
 		if(this.updTimer)
@@ -1572,18 +1796,18 @@ var theWebUI = {
 		this.timer.start();
 		if(qs != "list=1")
 			qs = "action=" + qs;
-		this.requestWithTimeout("?" + qs + "&getmsg=1", [this.addTorrents, this],
+		this.requestWithTimeout("?" + qs + "&getmsg=1", [this.receiveTorrents, this],
 			function()
 			{
 	   			theWebUI.timeout();
 				theWebUI.setInterval();
 		   	},
-			function(status,text)
+			function(status,text,state)
 			{
-				theWebUI.systemInfo.rTorrent.started = false;
-	   			theWebUI.error(status,text);
-				if(theWebUI.settings["webui.retry_on_error"])
-					theWebUI.setInterval( iv(theWebUI.settings["webui.retry_on_error"])*1000 );
+				// A failed list request alone does not establish whether rTorrent is
+				// running. Only the state the answer named does, and it is carried
+				// through to error() below.
+				theWebUI.listRequestFailed(status,text,state);
 		   	});
    	},
 
@@ -1608,12 +1832,45 @@ var theWebUI = {
 	 * @property {number} size
 	 */
 
+	torrentListValid: function(data)
+	{
+		// A 204 response reaches here as an empty string through getResponse().
+		return(!!data && !!data.torrents && (typeof data.torrents === "object")
+			&& !Array.isArray(data.torrents));
+	},
+
+	/**
+	 * Where a torrent list from the server enters the interface.
+	 *
+	 * addTorrents is an extension point: plugins replace it with a wrapper that
+	 * annotates the torrents on their way through, and the wrapper reads
+	 * data.torrents to do it. A container that is not one therefore has to be
+	 * refused ahead of that chain rather than inside the function it wraps.
+	 *
+	 * @param {Object} data
+	 * @param {Object.<string, WebUITorrent>} data.torrents
+	 */
+	receiveTorrents: function(data)
+	{
+		if(!this.torrentListValid(data))
+		{
+			this.listRequestFailed("Invalid torrent list response", "Missing torrents");
+			return;
+		}
+		this.addTorrents(data);
+	},
+
 	/**
 	 * @param {Object} data
 	 * @param {Object.<string, WebUITorrent>} data.torrents
 	 */
 	addTorrents: function(data)
 	{
+		if(!this.torrentListValid(data))
+		{
+			this.listRequestFailed("Invalid torrent list response", "Missing torrents");
+			return;
+		}
 		if(!theWebUI.systemInfo.rTorrent.started)
 		{
 			noty(theUILang.linkTorTorrentRestored,'success');
@@ -1640,6 +1897,16 @@ var theWebUI = {
 				table.setRowById(torrent, hash, sInfo[0], {})
 			})
 			.enqueueFunc(() => {
+				if (theWebUI.dID && !(theWebUI.dID in dataTorrents)) {
+					const staleDetailsHash = theWebUI.dID;
+					delete theWebUI.files[staleDetailsHash];
+					delete theWebUI.dirs[staleDetailsHash];
+					delete theWebUI.peers[staleDetailsHash];
+					delete theWebUI.trackers[staleDetailsHash];
+					theWebUI.dID = "";
+					theWebUI.clearDetails();
+				}
+
 				// update details page
 				const detailsTorrent = dataTorrents[theWebUI.dID];
 				const oldDetailsTorrent = this.torrents[theWebUI.dID];
@@ -1660,6 +1927,7 @@ var theWebUI = {
 						delete theWebUI.files[hash];
 						delete theWebUI.dirs[hash];
 						delete theWebUI.peers[hash];
+						delete theWebUI.trackers[hash];
 						table.removeRow(hash);
 					}
 				}
@@ -1781,6 +2049,14 @@ var theWebUI = {
 	{
 		var state = torrent.state;
 		var completed = torrent.done;
+		// rTorrent calls a download complete only when every chunk of the torrent
+		// is on disk, so a download whose deselected files own at least one chunk
+		// outright never gets there -- those chunks are never fetched.
+		// d.is_partially_done says every selected chunk is on disk -- true for a
+		// fully downloaded torrent as well, hence the percentage test -- and that
+		// is treated as complete wherever the status acts as a category. The
+		// percentage keeps counting the whole torrent, which is what is on disk.
+		var partial = (completed < 1000) && (torrent.partially_done == 1);
 		var icon = "", status = "";
 		if(state & dStatus.checking)
 		{
@@ -1804,8 +2080,9 @@ var theWebUI = {
 				}
 				else
 				{
-					icon = (completed == 1000) ? "Status_Up" : "Status_Down";
-					status = (completed == 1000) ? theUILang.Seeding : theUILang.Downloading;
+					icon = ((completed == 1000) || partial) ? "Status_Up" : "Status_Down";
+					status = (completed == 1000) ? theUILang.Seeding :
+						(partial ? theUILang.PartialSeed : theUILang.Downloading);
 				}
 			}
 		}
@@ -1819,7 +2096,7 @@ var theWebUI = {
 			else
 				icon = "Status_Error";
 		}
-		if((completed == 1000) && (status == ""))
+		if(((completed == 1000) || partial) && (status == ""))
 		{
 			if(icon=="")
 				icon = "Status_Completed";
@@ -1902,7 +2179,7 @@ var theWebUI = {
       				req += ("&hash=" + k + "&s=label&v=" + encodeURIComponent(lbl));
 		}
 		if(req.length>0)
-			this.request("?action=setlabel"+req+"&list=1",[this.addTorrents, this]);
+			this.request("?action=setlabel"+req+"&list=1",[this.receiveTorrents, this]);
 	},
 
 	removeLabel: function()
@@ -1928,7 +2205,7 @@ var theWebUI = {
 	createLabel: function()
 	{
    		var lbl = $("#txtLabel").val().trim();
-		lbl = lbl.replace(/\"/g, "'");
+		lbl = lbl.replace(/"/g, "'");
    		if(lbl != "")
 		{
 	   		var sr = this.getTable("trt").rowSel;
@@ -1939,7 +2216,7 @@ var theWebUI = {
 	         			req+=("&hash=" + k + "&s=label&v=" + encodeURIComponent(lbl));
 	         	}
 			if(req.length>0)
-				this.request("?action=setlabel"+req+"&list=1",[this.addTorrents, this]);
+				this.request("?action=setlabel"+req+"&list=1",[this.receiveTorrents, this]);
 		}
 	},
 
@@ -2082,29 +2359,12 @@ var theWebUI = {
 			$("#et").text(theConverter.time(Math.floor((new Date().getTime()-theWebUI.deltaTime)/1000-iv(d.state_changed)),true));
 			$("#wa").text(theConverter.bytes(d.skip_total, 'details'));
 	        	$("#bf").text(d.base_path);
-	        	$("#co").text(theConverter.date(iv(d.created)+theWebUI.deltaTime/1000));
+	        	$("#co").text(theConverter.date(iv(d.created)));
 			const trackers = this.trackers[this.dID] ?? [];
 			$("#tu").text(trackers.length ? (trackers[0].name  + (trackers.length > 1 ? ` ${theUILang.of} ${d.tracker_size}` : '')) : `${d.tracker_size}`);
 	        	$("#hs").text(this.dID.substring(0,40));
-			$("#ts").text(d.msg);
-			var url = d.comment.trim();
-			if(!url.match(/<a href/i))
-			{
-				var start = url.indexOf("http://");
-				if(start<0)
-					start = url.indexOf("https://");
-				if(start>=0)
-				{
-					var end = url.indexOf(" ",start);
- 					if(end<0)
-						end = url.length;
-					var prefix = url.substring(0,start);
-					var postfix = url.substring(end);
-					url = url.substring(start,end);
-					url = prefix+"<a href='"+url+"' target=_blank>"+url+"</a>"+postfix;
-				}
-			}
-			$("#cmt").html( strip_tags(url,'<a><b><strong>') );
+			$("#ts").html(getClickableTrackerStatus(d.msg));
+			$("#cmt").empty().append(linkifyToNodes(d.comment));
 			$("#dsk").text((d.free_diskspace=='0') ? '' : theConverter.bytes(d.free_diskspace,'details'));
 		}
 	},
@@ -2174,17 +2434,17 @@ var theWebUI = {
 	                theContextMenu.clear();
 	                var speeds=theWebUI.settings["webui.speedlistdl"].split(",");
 	                if(theWebUI.total.rateDL<=0 || theWebUI.total.rateDL>=327625*1024)
-	                	theContextMenu.add([CMENU_SEL,theUILang.unlimited,"theWebUI.setDLRate(327625*1024)"]);
+				theContextMenu.add([CMENU_SEL,theUILang.unlimited,() => theWebUI.setDLRate(327625*1024)]);
 			else
-		                theContextMenu.add([theUILang.unlimited,"theWebUI.setDLRate(327625*1024)"]);
+		                theContextMenu.add([theUILang.unlimited,() => theWebUI.setDLRate(327625*1024)]);
 			theContextMenu.add([CMENU_SEP]);
 	                for(var i=0; i<speeds.length; i++)
 	                {
-	                	var spd = iv(speeds[i])*1024;
+				const spd = iv(speeds[i])*1024;
 		                if(theWebUI.total.rateDL==spd)
-					theContextMenu.add([CMENU_SEL,theConverter.speed(spd),"theWebUI.setDLRate("+spd+")"]);
+					theContextMenu.add([CMENU_SEL,theConverter.speed(spd),() => theWebUI.setDLRate(spd)]);
 				else
-					theContextMenu.add([theConverter.speed(spd),"theWebUI.setDLRate("+spd+")"]);
+					theContextMenu.add([theConverter.speed(spd),() => theWebUI.setDLRate(spd)]);
 			}
 			theContextMenu.show(e.clientX,e.clientY);
 		}
@@ -2198,17 +2458,17 @@ var theWebUI = {
 	                theContextMenu.clear();
 	                var speeds=theWebUI.settings["webui.speedlistul"].split(",");
 	                if(theWebUI.total.rateUL<=0 || theWebUI.total.rateUL>=327625*1024)
-	                	theContextMenu.add([CMENU_SEL,theUILang.unlimited,"theWebUI.setULRate(327625*1024)"]);
+				theContextMenu.add([CMENU_SEL,theUILang.unlimited,() => theWebUI.setULRate(327625*1024)]);
 			else
-		                theContextMenu.add([theUILang.unlimited,"theWebUI.setULRate(327625*1024)"]);
+		                theContextMenu.add([theUILang.unlimited,() => theWebUI.setULRate(327625*1024)]);
 			theContextMenu.add([CMENU_SEP]);
 	                for(var i=0; i<speeds.length; i++)
 	                {
-	                	var spd = iv(speeds[i])*1024;
+				const spd = iv(speeds[i])*1024;
 		                if(theWebUI.total.rateUL==spd)
-					theContextMenu.add([CMENU_SEL,theConverter.speed(spd),"theWebUI.setULRate("+spd+")"]);
+					theContextMenu.add([CMENU_SEL,theConverter.speed(spd),() => theWebUI.setULRate(spd)]);
 				else
-					theContextMenu.add([theConverter.speed(spd),"theWebUI.setULRate("+spd+")"]);
+					theContextMenu.add([theConverter.speed(spd),() => theWebUI.setULRate(spd)]);
 			}
 			theContextMenu.show(e.clientX,e.clientY);
 		}
@@ -2397,7 +2657,7 @@ var theWebUI = {
 	},
 
 	requestWithTimeout: function(qs, onComplite, onTimeout, onError, isASync) {
-		Ajax(this.url + qs, isASync, onComplite, onTimeout, onError, this.settings["webui.reqtimeout"]);
+		Ajax(qs instanceof rTorrentStub ? qs : this.url + qs, isASync, onComplite, onTimeout, onError, this.settings["webui.reqtimeout"]);
 	},
 
 	requestWithoutTimeout: function(qs, onComplite, isASync) {
@@ -2438,18 +2698,24 @@ var theWebUI = {
 				msg = "JS error: [" + url + " : " + line + "] " + msg;
 				theWebUI.msg(msg);
 				log(msg);
-				
+
 				if (error != null)
 					console.log(msg, "from", error.stack);
-				
+
 				return true;
 			}
    	},
 
-	error: function(status,text)
+	error: function(status,text,state)
 	{
 		theWebUI.show();
-		noty("Bad response from server: ("+status+") "+(text ? text : ""),"error");
+		// Only an answer that named the daemon unreachable establishes that it is.
+		// A refusal, a fault and a local timeout each leave the last confirmed
+		// state standing, and the next list that comes back announces its return.
+		if(state === "unreachable")
+			theWebUI.systemInfo.rTorrent.started = false;
+		noty("Bad response from server: ("+status+") "+
+			(text ? text : "the server sent no message"),"error");
 	},
 
 	timeout: function()
@@ -2536,11 +2802,117 @@ function createCategoryList(catModule) {
 	return categoryList;
 }
 
+// A title tooltip never opens on a touch screen, so the status bar panes that
+// keep their numbers in one -- disk space, CPU load, port status -- read as
+// blank when tapped. Show the title in a bubble above the finger instead and
+// leave it there until the next tap, so the numbers can be read. Pointer input
+// is untouched: touch events do not fire for it, and the browser opens its own
+// tooltip on hover.
+var theStatusTip =
+{
+	el: null,
+	cell: null,
+	observer: null,
+	start: null,
+
+	// The status bar scrolls sideways on a narrow screen, so a drag is not a tap.
+	MOVE_TOLERANCE: 10,
+	GAP: 12,
+
+	init: function()
+	{
+		$("#StatusBar")
+			.on("touchstart", function(e)
+			{
+				var touch = e.originalEvent.changedTouches[0];
+				theStatusTip.start = touch ? {x: touch.clientX, y: touch.clientY} : null;
+			})
+			.on("touchend", function(e)
+			{
+				theStatusTip.onTap(e.originalEvent);
+			})
+			.on("scroll", function()
+			{
+				theStatusTip.hide();
+			});
+		$(window).on("resize scroll", function()
+		{
+			theStatusTip.hide();
+		});
+	},
+
+	onTap: function(event)
+	{
+		var touch = event.changedTouches[0];
+		var start = this.start;
+		this.start = null;
+		if(!touch || !start)
+			return;
+		if((Math.abs(touch.clientX - start.x) > this.MOVE_TOLERANCE) ||
+			(Math.abs(touch.clientY - start.y) > this.MOVE_TOLERANCE))
+			return;
+		var cell = $(touch.target).closest("#StatusBar [title]")[0];
+		// A second tap on the same pane closes it, as does a tap on a pane
+		// that has nothing to say.
+		if(cell && (cell !== this.cell) && cell.getAttribute("title"))
+			this.show(cell, touch.clientX);
+		else
+			this.hide();
+	},
+
+	show: function(cell, x)
+	{
+		this.hide();
+		this.cell = cell;
+		this.el = $("<div>")
+			.addClass("status-tip")
+			.attr("role", "tooltip")
+			.text(cell.getAttribute("title"))
+			.appendTo("body");
+		var width = this.el.outerWidth();
+		this.el.css(
+		{
+			left: Math.max(8, Math.min(x - width / 2, window.innerWidth - width - 8)),
+			bottom: window.innerHeight - cell.getBoundingClientRect().top + this.GAP
+		});
+		// Disk space and CPU load rewrite their title every few seconds.
+		if(window.MutationObserver)
+		{
+			this.observer = new MutationObserver(function()
+			{
+				if(theStatusTip.el)
+					theStatusTip.el.text(cell.getAttribute("title"));
+			});
+			this.observer.observe(cell, {attributes: true, attributeFilter: ["title"]});
+		}
+		// Closes on the next tap anywhere outside the status bar.
+		$(document).on("touchend.statustip", function(e)
+		{
+			if(!$(e.target).closest("#StatusBar").length)
+				theStatusTip.hide();
+		});
+	},
+
+	hide: function()
+	{
+		if(this.observer)
+		{
+			this.observer.disconnect();
+			this.observer = null;
+		}
+		if(this.el)
+			this.el.remove();
+		this.el = this.cell = null;
+		$(document).off("touchend.statustip");
+	}
+};
+
 $(document).ready(function()
 {
 	makeContent();
 	theContextMenu.init();
 	theTabs.init();
+	theStatusTip.init();
 	Promise.all([
 		import('./backgroundtask.js'),
 		import('./category-list.js'),

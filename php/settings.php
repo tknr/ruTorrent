@@ -17,6 +17,14 @@ class rTorrentSettings
 	public $version;
 	public $libVersion;
 	public $apiVersion = 0;
+	// rtorrent 0.16.21. system.sockets.available_alloc and the per-category
+	// limits do not exist before it, so the whole probe is gated on this.
+	const SOCKET_ALLOC_VERSION = 0x1015;
+
+	public $socketAllocBudget = 0;
+	public $socketHttpAllocMax = 0;
+	public $socketFilesAllocMax = 0;
+	public $socketFilesAllocMin = 0;
 	public $plugins = array();
 	public $hooks = array();
 	public $aliases = array();
@@ -31,18 +39,6 @@ class rTorrentSettings
 	public $ip = '0.0.0.0';
 
 	static private $theSettings = null;
-
-	private $ratioCmds = array
-	(
-		"view",          
-		"view.set",
-		"ratio.min",
-		"ratio.min.set",
-		"ratio.max",
-		"ratio.max.set",
-		"ratio.upload",
-		"ratio.upload.set",
-	);
 
 	private function __construct()
     	{
@@ -84,11 +80,11 @@ class rTorrentSettings
 			"level" => $level,
 		);
 
-		$sort = function ($a,$b) 
-		{ 
+		$sort = function ($a,$b)
+		{
 			$lvl1 = (float) $a["level"];
 			$lvl2 = (float) $b["level"];
-			return( $lvl1 > $lvl2 ? 1 : 
+			return( $lvl1 > $lvl2 ? 1 :
 				($lvl1 < $lvl2 ? -1 : strcmp($a["name"], $b["name"]) ));
 		};
 
@@ -115,9 +111,12 @@ class rTorrentSettings
 	{
 	        if( array_key_exists($ename, $this->hooks) )
 	        {
-			for( $i = 0; $i<count($this->hooks[$ename]); $i++ )
+			foreach( $this->hooks[$ename] as $i => $subject )
 			{
-				if($this->hooks[$ename][$i] == $plugin)
+				// A cache written before 63f15c6c holds the plugin name alone
+				// where a subject array sits now, and either shape answers for
+				// the same registration.
+				if(($subject["name"] ?? $subject) === $plugin)
 				{
 					unset($this->hooks[$ename][$i]);
 					if( empty($this->hooks[$ename]) )
@@ -159,7 +158,7 @@ class rTorrentSettings
 				{
 					require_once( $file );
 					$func = str_replace('-', '_', $hook['name']).'Hooks::On'.$ename;
-					if(is_callable( $func ) && 
+					if(is_callable( $func ) &&
 						(call_user_func_array($func,$prm)==true))
 					{
 						break;
@@ -171,6 +170,14 @@ class rTorrentSettings
 
 	public function store()
 	{
+		// Only obtain() sets linkExist, and only getplugins.php and
+		// initplugins.php call it. Every other entry point reads this cache
+		// and takes it at its word, so caching an object whose probe failed
+		// makes one unanswered request speak for the install: the alias map is
+		// empty, and getCommand() then hands back the pre-0.9 spelling of every
+		// renamed command until something probes again.
+		if(!$this->linkExist)
+			return(false);
 		$cache = new rCache();
 		return($cache->set($this));
 	}
@@ -185,6 +192,21 @@ class rTorrentSettings
 			{
 				$cache = new rCache();
 				$cache->get(self::$theSettings);
+				// Nothing was read: the first request of a profile's life, a
+				// profile the web server cannot write, a cache file removed.
+				// An unprobed object reports no version and an empty alias
+				// map, and every caller takes it at its word -- getCommand()
+				// answers with the pre-0.9 spelling of each renamed command,
+				// and patchDeprecatedCommand() leaves out the target argument
+				// d.multicall has taken since 0.16.16. So probe here as well,
+				// rather than let what one entry point sends depend on
+				// another having run first.
+				//
+				// Inside the guard above, not after it: obtain() builds
+				// commands of its own, and every command asks get() for the
+				// settings again.
+				if(empty(self::$theSettings->iVersion))
+					self::$theSettings->obtain();
 			}
 		}
 		return(self::$theSettings);
@@ -216,11 +238,32 @@ class rTorrentSettings
 				if($req->success())
 					$this->iVersion=0x809;
 			}
+			if($this->iVersion<0x900)
+			{
+				require_once( 'methods-pre-0.9.0.php' );
+			}
 			if($this->iVersion>=0x904)
 			{
 				require_once( 'methods-0.9.4.php' );
 			}
-			
+			// iVersion packs one version component per byte, so 0.10.2 is
+			// 0x0a02 (0x1002 would be 0.16.2). Newer daemons inherit these.
+			if($this->iVersion>=0x0a02)
+			{
+				require_once( 'methods-0.10.2.php' );
+			}
+			if($this->iVersion>=0x1000)
+			{
+				require_once( 'methods-0.16.0.php' );
+			}
+			if($this->iVersion>=0x1010)
+			{
+				require_once( 'methods-0.16.16.php' );
+			}
+			if($this->iVersion>=0x1012)
+			{
+				require_once( 'methods-0.16.18.php' );
+			}
 			$this->apiVersion = 0;
 			if($this->iVersion>=0x901)
 			{
@@ -229,17 +272,50 @@ class rTorrentSettings
 				if($req->success())
 					$this->apiVersion = $req->val[0];
 			}
+			// system.sockets.available_alloc is the total the configurable
+			// categories may share. internal and rpc are not exposed on the
+			// settings page, so what is left is what open files and HTTP
+			// connections have between them. Absent before rtorrent 0.16.21.
+			if(self::socketAllocSupported($this->iVersion))
+			{
+				$req = new rXMLRPCRequest( array(
+					new rXMLRPCCommand("system.sockets.available_alloc"),
+					new rXMLRPCCommand("system.sockets.internal.max_size"),
+					new rXMLRPCCommand("system.sockets.rpc.max_size"),
+					new rXMLRPCCommand("system.sockets.http.max_alloc.limit"),
+					new rXMLRPCCommand("system.sockets.files.max_alloc.limit"),
+					new rXMLRPCCommand("system.sockets.files.min_alloc.limit") ) );
+				$req->important = false;
+				if($req->success())
+					$this->applySocketAllocLimits($req->val);
+			}
 
-                        $req = new rXMLRPCRequest( new rXMLRPCCommand("to_kb", floatval(1024)) );
+			$req = new rXMLRPCRequest(new rXMLRPCCommand(
+				"convert.kb",
+				array('',floatval(1024))
+			));
 			if($req->run())
 			{
 				if(!$req->fault)
 					$this->badXMLRPCVersion = false;
+				// The size limit is a request, not a reading. Sent inside the
+				// batch below, a refusal would take every reading with it.
+				//
+				// 16777216 is SCgiTask::max_content_size, which the SCGI
+				// transport applies to CONTENT_LENGTH: a request larger than
+				// that is refused whatever this limit says, so asking for more
+				// buys nothing and from 0.16.22 rtorrent refuses to set it.
+				// Worth asking for at all because the default, 524288, is
+				// smaller than plenty of torrent files, and load.raw_start
+				// carries them through here.
+				$req = new rXMLRPCRequest( new rXMLRPCCommand("set_xmlrpc_size_limit",16777216) );
+				$req->important = false;
+				$req->success();
+
 				$req = new rXMLRPCRequest( array(
 					new rXMLRPCCommand("get_directory"),
 					new rXMLRPCCommand("get_session"),
 					new rXMLRPCCommand("system.library_version"),
-					new rXMLRPCCommand("set_xmlrpc_size_limit",67108863),
 					new rXMLRPCCommand("get_name"),
 					new rXMLRPCCommand("get_port_range"),
 					new rXMLRPCCommand("get_bind"),
@@ -250,11 +326,11 @@ class rTorrentSettings
 					$this->directory = $req->val[0];
   		        	        $this->session = $req->val[1];
 					$this->libVersion = $req->val[2];
-					$this->server = $req->val[4];
-					$this->portRange = $req->val[5];
+					$this->server = $req->val[3];
+					$this->portRange = $req->val[4];
 					$this->port = intval($this->portRange);
-					$this->bind = $req->val[6];
-					$this->ip = $req->val[7];
+					$this->bind = $req->val[5];
+					$this->ip = $req->val[6];
 
 					if($this->iVersion>=0x809)
 					{
@@ -282,7 +358,7 @@ class rTorrentSettings
 							$this->home = trim($line[2]);
 							if(!empty($this->directory) &&
 								($this->directory[0]=='~'))
-								$this->directory = $this->home.substr($this->directory,1);	
+								$this->directory = $this->home.substr($this->directory,1);
 						}
 						else
 							$this->idNotFound = true;
@@ -301,12 +377,37 @@ class rTorrentSettings
 			$cmd = substr($cmd,0,-1);
 			$add = '=';
 		}
-		return(array_key_exists($cmd,$this->aliases) ? $this->aliases[$cmd]["name"].$add : $cmd.$add);		
+		return(array_key_exists($cmd,$this->aliases) ? $this->aliases[$cmd]["name"].$add : $cmd.$add);
 	}
 	public function getRatioGroupCommand($ratio,$cmd,$args)
 	{
-		$prefix = ($this->iVersion >= 0x904) && in_array($cmd,$this->ratioCmds) ? "group2." : "group.";
-		return( new rXMLRPCCommand( $prefix.$ratio.".".$cmd, $args ) );
+		// The limits of a ratio group are not reached the same way on
+		// every rtorrent:
+		//
+		// Below 0.15 they are group2.NAME.ratio.{min,max,upload}[.set].
+		// Some 0.9.8 builds also define group.NAME.ratio.*, others do
+		// not, so group2.* is the name that works on all of them. It
+		// takes (target, value); patchDeprecatedCommand() prepends the
+		// target.
+		//
+		// 0.15.x stubs group2.*, and group.NAME.*.set takes a bare value,
+		// rejecting (target, value) with "Wrong object type".
+		//
+		// 0.16+ removed group2.*, and group.NAME.*.set requires
+		// (target, value), rejecting a bare value with "invalid
+		// parameters: target must be a string".
+		//
+		// ratio.enable, ratio.disable and ratio.command are group.NAME.*
+		// on every version.
+		if(($this->iVersion >= 0x904) && ($this->iVersion < 0x0f00) &&
+			preg_match('/^ratio\.(min|max|upload)(\.set)?$/', $cmd))
+			return( new rXMLRPCCommand( "group2.".$ratio.".".$cmd, $args ) );
+		if(($this->iVersion >= 0x1000) && (substr($cmd, -4) === ".set"))
+		{
+			if(!is_array($args)) $args = array($args);
+			array_unshift($args, "");
+		}
+		return( new rXMLRPCCommand( "group.".$ratio.".".$cmd, $args ) );
 	}
 	public function getEventCommand($cmd1,$cmd2,$args)
 	{
@@ -317,6 +418,44 @@ class rTorrentSettings
 		$cmd->addParameters($args);
 		return($cmd);
 	}
+	/**
+	 * Whether the daemon reports its socket allocation limits at all.
+	 *
+	 * @param int|null $iVersion packed rtorrent version, or null when unknown
+	 */
+	public static function socketAllocSupported( $iVersion )
+	{
+		// null before the version has been read, and 0 is the sentinel
+		// php/getplugins.php emits while the daemon is unreachable. Both
+		// compare below the threshold, so neither is asked.
+		return($iVersion>=self::SOCKET_ALLOC_VERSION);
+	}
+
+	/**
+	 * Take the limits out of the answer to the six-command probe.
+	 *
+	 * The budget is what the two categories the settings page offers have
+	 * between them: the total, less the two categories it does not offer. A
+	 * daemon that answered with anything else leaves the defaults alone --
+	 * a zero budget is read as "unknown" by the settings page, and a wrong
+	 * one would be offered to the user as a limit to type against.
+	 *
+	 * @param array $val the six values, in the order they were asked for
+	 */
+	public function applySocketAllocLimits( $val )
+	{
+		if(!is_array($val) || (count($val)!=6))
+			return(false);
+		foreach($val as $v)
+			if(!is_numeric($v))
+				return(false);
+		$this->socketAllocBudget = max(0,$val[0]-$val[1]-$val[2]);
+		$this->socketHttpAllocMax = $val[3];
+		$this->socketFilesAllocMax = $val[4];
+		$this->socketFilesAllocMin = $val[5];
+		return(true);
+	}
+
 	public function getOnInsertCommand($args)
 	{
 		return($this->getEventCommand('on_insert','inserted_new',$args));
@@ -345,43 +484,168 @@ class rTorrentSettings
 		$startAt = $interval+rand(0,$schedule_rand);
 		return( new rXMLRPCCommand("schedule", array( $name.User::getUser(), $startAt."", $interval."", $cmd )) );
 	}
-	public function getScheduleCommand($name,$interval,$cmd,&$startAt = null)	// $interval in minutes
+	public function getScheduleCommand($name,$interval,$cmd,&$startAt = null,$now = null)	// $interval in minutes
+	{
+		// The start has to be deterministic, not jittered with rand().
+		// php/getplugins.php re-runs every enabled plugin's init.php on each
+		// full load of the web interface, and rTorrent's scheduler replaces an
+		// entry that reuses a key, restarting its countdown at now+start
+		// (CommandScheduler::insert). With a random offset a reload landing in
+		// the jitter window -- after the wall-clock boundary but before the
+		// task actually fired -- recomputed to the *next* boundary, so a user
+		// who kept refreshing cost the task a whole interval each time.
+		// getAlignedStart spreads the tasks over that same window by the crc32
+		// of their key instead, so every re-registration of one task resolves
+		// to the same absolute instant; it counts in seconds, hence the
+		// conversion first. It also never returns 0, so a reload cannot fire
+		// the task at once, and $startAt stays the seconds-until-fire that
+		// callers such as plugins/rss report as the next update time.
+		//
+		// $now is the same clock seam getAlignedStart already carries, and it
+		// is here for the same reason: what this function has to promise is
+		// that two registrations made at *different* instants resolve to the
+		// same fire time, and a caller that can only read the clock samples a
+		// single instant. Production callers pass nothing and get time().
+		$interval = $interval*60;
+		$startAt = self::getAlignedStart($name,$interval,$now);
+		return( new rXMLRPCCommand("schedule", array( $name.User::getUser(), $startAt."", $interval."", $cmd )) );
+	}
+	static public function getAlignedStart($name,$interval,$now = null)	// $interval in seconds
 	{
 		global $schedule_rand;
 		if(!isset($schedule_rand))
 			$schedule_rand = 10;
-		$tm = getdate();
-		$startAt = mktime($tm["hours"],
-			((integer)($tm["minutes"]/$interval))*$interval+$interval,
-			0,$tm["mon"],$tm["mday"],$tm["year"])-$tm[0]+rand(0,$schedule_rand);
-		if($startAt<0)
-			$startAt = 0;
-		$interval = $interval*60;
-		return( new rXMLRPCCommand("schedule", array( $name.User::getUser(), $startAt."", $interval."", $cmd )) );
+		if($interval<1)
+			return(0);
+		if(is_null($now))
+			$now = time();
+		$offset = ($schedule_rand>0) ? (abs(crc32($name.User::getUser())) % ($schedule_rand+1)) : 0;
+		$startAt = (($offset-$now) % $interval + $interval) % $interval;
+		return($startAt<1 ? $interval : $startAt);
+	}
+	public function getAlignedScheduleCommand($name,$interval,$cmd)	// $interval in seconds
+	{
+		return( new rXMLRPCCommand("schedule", array( $name.User::getUser(),
+			self::getAlignedStart($name,$interval)."", $interval."", $cmd )) );
 	}
 	public function getRemoveScheduleCommand($name)
 	{
-		return(	new rXMLRPCCommand("schedule_remove", $name.User::getUser()) );	
+		return(	new rXMLRPCCommand("schedule_remove", $name.User::getUser()) );
 	}
+	// NAME_MAX and PATH_MAX as Linux counts them, in bytes. PATH_MAX includes
+	// the terminating NUL, so the longest path a call can name is one less.
+	const DIRECTORY_NAME_MAX = 255;
+	const DIRECTORY_PATH_MAX = 4095;
+
+	/**
+	 * The absolute directory a user's typed directory names, or false.
+	 *
+	 * A relative value is joined to $default, rtorrent's default directory,
+	 * or to $top when $default is not inside $top. An absolute value inside
+	 * $top is kept; one outside it is read as relative to $top, so "/x" is
+	 * <top>/x. "//", "." and ".." are folded, and a value that would end
+	 * outside $top is put under it the same way, so ".." cannot leave it.
+	 * "~" is an ordinary character.
+	 *
+	 * Refused before anything is joined: a URL or a magnet link, which
+	 * folding would turn into an ordinary looking path; a NUL byte; and a
+	 * name no filesystem holds. The result is refused when it is longer than
+	 * a path can be.
+	 */
+	public static function userDirectory($dir, $top, $default = '')
+	{
+		if(!is_string($dir) || (strpos($dir, "\0") !== false) ||
+			preg_match('`[A-Za-z][A-Za-z0-9+.-]*://`', $dir) || (stripos($dir, 'magnet:?') !== false))
+			return(false);
+		foreach(explode('/', $dir) as $name)
+			if(strlen($name) > self::DIRECTORY_NAME_MAX)
+				return(false);
+		$top = FileUtil::fullpath('/'.$top);
+		$rooted = FileUtil::fullpath('/'.$dir);
+		if(($dir !== '') && ($dir[0] === '/'))
+			$path = $rooted;
+		else
+		{
+			$base = FileUtil::fullpath('/'.$default);
+			if(!is_string($default) || ($default === '') || !self::isUnder($base, $top))
+				$base = $top;
+			$path = FileUtil::fullpath($base.'/'.$dir);
+		}
+		if(!self::isUnder($path, $top))
+			$path = FileUtil::fullpath($top.$rooted);
+		if(strlen($path) > self::DIRECTORY_PATH_MAX)
+			return(false);
+		return($path);
+	}
+
+	/** Whether the normalised absolute $path is $top or under it. */
+	private static function isUnder($path, $top)
+	{
+		return(($top === '/') || ($path === $top) || (strpos($path, $top.'/') === 0));
+	}
+
+	/**
+	 * Resolve a directory a user typed, in place, under $topDirectory and
+	 * against the default directory; see userDirectory(). False when it is refused. With $resolve_links the
+	 * result is also resolved through symbolic links and has to stay inside.
+	 */
 	public function correctDirectory(&$dir,$resolve_links = false)
 	{
 		global $topDirectory;
-		if(strlen($dir) && ($dir[0]=='~'))
-			$dir = $this->home.substr($dir,1);
-		$dir = FileUtil::fullpath($dir,$this->directory);
+		$resolved = self::userDirectory($dir, $topDirectory, $this->directory);
+		if($resolved === false)
+			return(false);
+		$dir = $resolved;
 		if($resolve_links)
 		{
 			$path = realpath($dir);
 			if(!$path)
 				$dir = FileUtil::addslash(realpath(dirname($dir))).basename($dir);
 			else
-				$dir = $path;	
+				$dir = $path;
 		}
+		return(strpos(FileUtil::addslash($dir),FileUtil::addslash($topDirectory))===0);
+	}
+
+	/**
+	 * Judge a directory rtorrent reported for one of its downloads, as a
+	 * reload sends it back: relative to the default directory, "~" as
+	 * rtorrent's home, and accepted only when it is already inside
+	 * $topDirectory. Nothing is moved under the top directory, because the
+	 * download's data is where rtorrent said it is.
+	 */
+	public function correctReportedDirectory(&$dir)
+	{
+		global $topDirectory;
+		if(strlen($dir) && ($dir[0]=='~'))
+			$dir = $this->home.substr($dir,1);
+		$dir = FileUtil::fullpath($dir,$this->directory);
 		return(strpos(FileUtil::addslash($dir),$topDirectory)===0);
+	}
+	// The file and HTTP socket limits belong to libtorrent's socket manager:
+	// network.max_open_files.set is an inert stub, and
+	// system.sockets.<category>.max_alloc is a ceiling that can only lower the
+	// allocation. Landing on the exact requested value therefore needs both
+	// min_alloc and max_alloc, followed by a system.sockets.adjust_alloc
+	// recompute -- nothing takes effect until adjust_alloc runs.
+	//
+	// Restricted to 0.16.19+. Earlier versions abort the process on an
+	// over-budget adjust_alloc, and the budget cannot be checked beforehand
+	// because its reserve and min_generic terms are not exposed over RPC.
+	// 0.16.19 reports a regular XMLRPC fault instead.
+	public function getSocketAllocCategory( $name )
+	{
+		if($this->iVersion<0x1013)
+			return(null);
+		if($name=="nmax_open_files")
+			return("files");
+		if($name=="nmax_open_http")
+			return("http");
+		return(null);
 	}
 	public function patchDeprecatedCommand( $cmd, $name )
 	{
-		if((array_key_exists($name,$this->aliases) && $this->aliases[$name]["prm"]) || 
+		if((array_key_exists($name,$this->aliases) && $this->aliases[$name]["prm"]) ||
 			(($this->iVersion>=0x904) && (strpos($cmd->command,"group2.")===0)))
 			$cmd->addParameter("");
 	}
@@ -404,8 +668,8 @@ class rTorrentSettings
 				else
 				if(strpos($cmd->command, 'f.') === 0)
 					$prefix = ':f';
-				if(!empty($prefix) && 
-					(count($cmd->params)>1) && 
+				if(!empty($prefix) &&
+					(count($cmd->params)>1) &&
 					(substr($cmd->command, -10) !== '.multicall') &&
 					(strpos($cmd->params[0]->value, ':') === false) )
 				{

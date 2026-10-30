@@ -6,7 +6,7 @@ $pushBulletNotifications = array
 (
 	"addition" => array
 	(
-		"title" => "Torrent was added",
+		"title" => "Torrent added",
 		"body" => "Name: {name}\n".
 			  "Label: {label}\n".
 			  "Size: {size}\n".
@@ -15,7 +15,7 @@ $pushBulletNotifications = array
 	),
 	"deletion" => array
 	(
-		"title" => "Torrent was deleted",
+		"title" => "Torrent deleted",
 		"body" => "Name: {name}\n".
 			  "Label: {label}\n".
 			  "Size: {size}\n".
@@ -26,10 +26,10 @@ $pushBulletNotifications = array
 			  "Added: {added}\n".
 			  "Finished: {finished}\n".
 			  "Tracker: {tracker}",
-	),	
+	),
 	"finish" => array
 	(
-		"title" => "Torrent was finished",
+		"title" => "Torrent finished",
 		"body" => "Name: {name}\n".
 			  "Label: {label}\n".
 			  "Size: {size}\n".
@@ -40,5 +40,5 @@ $pushBulletNotifications = array
 			  "Added: {added}\n".
 			  "Finished: {finished}\n".
 			  "Tracker: {tracker}",
-	),	
+	),
 );

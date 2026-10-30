@@ -42,6 +42,7 @@ const listAttribs = () => ({
       pstate_all: { icon: "all", text: "All", selected: true },
       "-_-_-dls-_-_-": { icon: "down", text: "Downloading" },
       "-_-_-com-_-_-": { icon: "completed", text: "Finished" },
+      "-_-_-wfa-_-_-": { icon: "inactive", text: "Stopped" },
       "-_-_-act-_-_-": { icon: "up-down", text: "Active" },
       "-_-_-iac-_-_-": { icon: "incompleted", text: "Inactive" },
       "-_-_-err-_-_-": { icon: "error", text: "Error" },
@@ -67,14 +68,14 @@ describe("Category list", () => {
       Object.fromEntries(
         [
           ["AA", "", "[Test] less", 16, 100 << 20, 0, 0],
-          ["BB", "Software", "[Banana] green", 0, 12 << 20, 5000, 10],
+          ["BB", "Software", "[Banana] green", 1, 12 << 20, 5000, 10],
           ["CC", "Image/Banana", "[Banana] ripe", 15, 1 << 30, 0, 10000],
           ["DD", "Image/Peach", "[Peach] rotten", 1, 500 << 20, 3000, 5000],
           ["EE", "Misc/Other/More", "[More] or less", 2, 300 << 20, 200, 0],
           ["FF", "Misc/Other/Less", "[Less] or more", 16, 200 << 20, 0, 0],
-        ].map(([hash, label, name, status, size, ul, dl]) => [
+        ].map(([hash, label, name, state, size, ul, dl]) => [
           hash,
-          { label, name, status, size, ul, dl },
+          { label, name, state, size, ul, dl },
         ])
       )
     );
@@ -86,7 +87,7 @@ describe("Category list", () => {
       borrowTorrentsFn,
       onConfigChangeFn,
       byteSizeToStringFn: (size) => `${(size / (1 << 20)).toFixed(2)} MiB`,
-      dStatus: { error: 16 },
+      dStatus: { started: 1, paused: 2, checking: 4, hashing: 8, error: 16 },
     });
   });
   it("should restore selection and searches on config", () => {
@@ -194,5 +195,24 @@ describe("Category list", () => {
     expect(search1Attribs.count).toBe("3");
     expect(search1Attribs.size).toBeNull(); // since show_statelabelsize is false
     expect(search1Attribs.prefix).toBe(undefined);
+  });
+
+  it("groups a finished partial download with the completed torrents", () => {
+    list.config(listSettings);
+    const torrents = {
+      AA: { label: "", name: "partial started", state: 1, size: 1, ul: 0, dl: 0, done: 180, partially_done: 1 },
+      BB: { label: "", name: "partial stopped", state: 0, size: 1, ul: 0, dl: 0, done: 180, partially_done: 1 },
+      CC: { label: "", name: "plain downloading", state: 1, size: 1, ul: 0, dl: 0, done: 180, partially_done: 0 },
+      DD: { label: "", name: "plain stopped", state: 0, size: 1, ul: 0, dl: 0, done: 180 },
+      EE: { label: "", name: "fully done", state: 1, size: 1, ul: 0, dl: 0, done: 1000, partially_done: 0 },
+    };
+    for (const [hash, torrent] of Object.entries(torrents)) {
+      list.statistic.scan(hash, torrent);
+    }
+    list.syncAfterScan();
+
+    expect(list.panelLabelAttribs.pstate.get("-_-_-com-_-_-").count).toBe("3");
+    expect(list.panelLabelAttribs.pstate.get("-_-_-dls-_-_-").count).toBe("1");
+    expect(list.panelLabelAttribs.pstate.get("-_-_-wfa-_-_-").count).toBe("1");
   });
 });

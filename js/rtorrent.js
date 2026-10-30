@@ -15,7 +15,7 @@
 /** @type {StatusMask} */
 var dStatus = { started : 1, paused : 2, checking : 4, hashing : 8, error : 16 };
 
-var theRequestManager = 
+var theRequestManager =
 {
 	aliases: {},
 	torrents: {},
@@ -23,48 +23,49 @@ var theRequestManager =
         trt:
         {
 		commands:
-		[ 
+		[
 			"d.get_hash=", "d.is_open=", "d.is_hash_checking=", "d.is_hash_checked=", "d.get_state=",
 			"d.get_name=", "d.get_size_bytes=", "d.get_completed_chunks=", "d.get_size_chunks=", "d.get_bytes_done=",
 			"d.get_up_total=", "d.get_ratio=", "d.get_up_rate=", "d.get_down_rate=", "d.get_chunk_size=",
 			"d.get_custom1=", "d.get_peers_accounted=", "d.get_peers_not_connected=", "d.get_peers_connected=", "d.get_peers_complete=",
 			"d.get_left_bytes=", "d.get_priority=", "d.get_state_changed=", "d.get_skip_total=", "d.get_hashing=",
 			"d.get_chunks_hashed=", "d.get_base_path=", "d.get_creation_date=", "d.get_tracker_size=", "d.is_active=",
-			"d.get_message=", "d.get_custom2=", "d.get_free_diskspace=", "d.is_private=", "d.is_multi_file="
+			"d.get_message=", "d.get_custom2=", "d.get_free_diskspace=", "d.is_private=", "d.is_multi_file=",
+			"d.is_partially_done="
 		],
 		handlers: []
 	},
-	trk: 
+	trk:
 	{
-		commands: 
+		commands:
 		[
-		        "t.get_url=", "t.get_type=", "t.is_enabled=", "t.get_group=", "t.get_scrape_complete=", 
+		        "t.get_url=", "t.get_type=", "t.is_enabled=", "t.get_group=", "t.get_scrape_complete=",
 			"t.get_scrape_incomplete=", "t.get_scrape_downloaded=",
 			"t.get_normal_interval=", "t.get_scrape_time_last="
 		],
 		handlers: []
 	},
-	fls: 
+	fls:
 	{
-		commands: 
+		commands:
 		[
 			"f.get_path=", "f.get_completed_chunks=", "f.get_size_chunks=", "f.get_size_bytes=", "f.get_priority="
 		],
 		handlers: []
 	},
-	prs: 
+	prs:
 	{
-		commands: 
-		[ 
+		commands:
+		[
 			"p.get_id=", "p.get_address=", "p.get_client_version=", "p.is_incoming=", "p.is_encrypted=",
 			"p.is_snubbed=", "p.get_completed_percent=", "p.get_down_total=", "p.get_up_total=", "p.get_down_rate=",
 			"p.get_up_rate=", "p.get_id_html=", "p.get_peer_rate=", "p.get_peer_total=", "p.get_port="
 		],
 		handlers: []
 	},
-	ttl: 
+	ttl:
 	{
-		commands: 
+		commands:
 		[
 			"get_up_total", "get_down_total", "get_upload_rate", "get_download_rate"
 		],
@@ -78,10 +79,10 @@ var theRequestManager =
 		],
 		handlers: []
 	},
-	prp: 
+	prp:
 	{
-		commands: 
-		[ 
+		commands:
+		[
 			"d.get_peer_exchange", "d.get_peers_max", "d.get_peers_min", "d.get_tracker_numwant", "d.get_uploads_max",
 			"d.is_private", "d.get_connection_seed"
 		],
@@ -91,7 +92,7 @@ var theRequestManager =
 	{
 		commands:
 		[
-			"check_hash", "bind", "dht_port", "directory", "download_rate", 
+			"check_hash", "bind", "dht_port", "directory", "download_rate",
 			"hash_interval", "hash_max_tries", "hash_read_ahead", "http_cacert", "http_capath",
 			"http_proxy", "ip", "max_downloads_div", "max_downloads_global", "max_file_size",
 			"max_memory_usage", "max_open_files", "max_open_http", "max_peers", "max_peers_seed",
@@ -142,8 +143,19 @@ var theRequestManager =
 				add = '=';
 			}
 			return(this.aliases[cmd] ? this.aliases[cmd].name+add : cmd+add);
-		}			
+		}
 		return( this.map(this[cmd].commands[no]) );
+	},
+	// See rTorrentSettings::getSocketAllocCategory() in php/settings.php.
+	getSocketAllocCategory: function( name )
+	{
+		if(theWebUI.systemInfo.rTorrent.iVersion<0x1013)
+			return(null);
+		if(name=="nmax_open_files")
+			return("files");
+		if(name=="nmax_open_http")
+			return("http");
+		return(null);
 	},
 	patchCommand: function( cmd, name )
 	{
@@ -164,8 +176,8 @@ var theRequestManager =
 			else
 			if(cmd.command.indexOf('f.') === 0)
 				prefix = ':f';
-			if(prefix && 
-				(cmd.params.length>1) && 
+			if(prefix &&
+				(cmd.params.length>1) &&
 				(cmd.command.indexOf('.multicall')<0) &&
 				(cmd.params[0].value.indexOf(':') < 0))
 			{
@@ -187,7 +199,28 @@ function rXMLRPCCommand( cmd )
 
 rXMLRPCCommand.prototype.addParameter = function(aType,aValue)
 {
-	this.params.push( {type : aType, value : aValue} );	
+	this.params.push( {type : aType, value : aValue} );
+}
+
+// The text of an XMLRPC <i8> for a number or a numeric string, rounded half
+// away from zero as php/xmlrpc.php rounds it, or null if it is not a finite
+// number within 64 bits. "1.5", "1e400" or "abc" written into an <i8> as they
+// stand is not an integer, and the daemon cannot read the request.
+function xmlrpcInteger(value)
+{
+	var n = NaN;
+	if(typeof(value) == "number")
+		n = value;
+	else
+	if((typeof(value) == "string") && (value.trim() !== ""))
+		n = Number(value);
+	if(!isFinite(n))
+		return(null);
+	n = (n<0) ? -Math.round(-n) : Math.round(n);
+	// -2^63 and 2^63 are exact as doubles; the largest below 2^63 is 2^63-1024.
+	if((n < -9223372036854775808) || (n >= 9223372036854775808))
+		return(null);
+	return(n.toFixed(0));
 }
 
 function rTorrentStub( URI )
@@ -365,13 +398,25 @@ rTorrentStub.prototype.recheck = function()
 
 rTorrentStub.prototype.setsettings = function()
 {
+	var socketCategories = [];
 	for(var i=0; i<this.vs.length; i++)
 	{
 		var prmType = "string";
-		if(this.ss[i].charAt(0)=='n')
-			prmType = "i8";
 		var prm = this.vs[i];
+		if(this.ss[i].charAt(0)=='n')
+		{
+			prmType = "i8";
+			// Empty stays empty, and so does a value with no integer text:
+			// the daemon refuses an empty <i8> as a fault, which is the
+			// outcome such a value should have.
+			if((prm !== "") && (this.ss[i]!="ndht"))
+			{
+				var text = xmlrpcInteger(prm);
+				prm = (text===null) ? "" : text;
+			}
+		}
 		var cmd = null;
+		var socketAlloc = theRequestManager.getSocketAllocCategory(this.ss[i]);
 		if(this.ss[i]=="ndht")
 		{
 			if(prm==0)
@@ -379,13 +424,153 @@ rTorrentStub.prototype.setsettings = function()
 			else
 				prm = "auto";
 			prmType = "string";
-			cmd = new rXMLRPCCommand('dht');
+			cmd = new rXMLRPCCommand('dht.mode.set');
+			cmd.addParameter("string",'');
+		}
+		else
+		if(socketAlloc!==null)
+		{
+			var minCmd = new rXMLRPCCommand("system.sockets."+socketAlloc+".min_alloc.set");
+			minCmd.addParameter("string",'');
+			minCmd.addParameter(prmType,prm);
+			this.commands.push( minCmd );
+			cmd = new rXMLRPCCommand("system.sockets."+socketAlloc+".max_alloc.set");
+			cmd.addParameter("string",'');
+			if(socketCategories.indexOf(socketAlloc)<0)
+				socketCategories.push(socketAlloc);
 		}
 		else
 			cmd = new rXMLRPCCommand('set_'+this.ss[i].substr(1));
 		cmd.addParameter(prmType,prm);
 		this.commands.push( cmd );
 	}
+	// The staged min_alloc/max_alloc values only take effect once the socket
+	// manager recomputes its allocation. Send it once per batch.
+	if(socketCategories.length)
+	{
+		// Reads lead this multicall, so a rejected later member can restore the
+		// allocation in effect before this browser changed either bound.
+		var reads = [];
+		for(var c=0; c<socketCategories.length; c++)
+		{
+			reads.push(new rXMLRPCCommand("system.sockets."+socketCategories[c]+".min_alloc"));
+			reads.push(new rXMLRPCCommand("system.sockets."+socketCategories[c]+".max_alloc"));
+		}
+		this.socketAllocCategories = socketCategories;
+		this.commands = reads.concat(this.commands);
+		this.commands.push( new rXMLRPCCommand("system.sockets.adjust_alloc") );
+	}
+}
+
+rTorrentStub.prototype.finishSetsettingsFailure = function()
+{
+	if($type(this.onSetsettingsFailure)=="function")
+	{
+		var callback = this.onSetsettingsFailure;
+		this.onSetsettingsFailure = null;
+		callback();
+	}
+}
+
+rTorrentStub.prototype.finishSocketRestore = function()
+{
+	if($type(this.onSocketRestoreFinished)=="function")
+	{
+		var callback = this.onSocketRestoreFinished;
+		this.onSocketRestoreFinished = null;
+		callback();
+	}
+}
+
+rTorrentStub.prototype.finishXMLFailure = function()
+{
+	if($type(this.onXMLFailure)=="function")
+	{
+		var callback = this.onXMLFailure;
+		this.onXMLFailure = null;
+		callback();
+	}
+}
+
+rTorrentStub.prototype.finishIndeterminateFailure = function()
+{
+	if($type(this.onIndeterminateFailure)=="function")
+	{
+		var callback = this.onIndeterminateFailure;
+		this.onIndeterminateFailure = null;
+		callback();
+		return(true);
+	}
+	return(false);
+}
+
+rTorrentStub.prototype.setsettingsParseXML = function(xml)
+{
+	if(this.socketAllocCategories)
+	{
+		var categories = this.socketAllocCategories;
+		if(!this.savedSocketAlloc)
+		{
+			var values = this.getXMLValues(xml, 2, 1)[0];
+			if(values && (values.length>=2*categories.length))
+			{
+				var bounds = values.slice(0,2*categories.length);
+				if(!bounds.some(function(bound) { return(!(/^\d+$/).test(bound)); }))
+					this.savedSocketAlloc = bounds;
+			}
+		}
+		if(this.isError())
+		{
+			// A restore is asynchronous; complete failure recovery only after its
+			// response so this WebUI cannot start another Save against stale bounds.
+			this.socketAllocCategories = null;
+			if(this.savedSocketAlloc)
+			{
+				var restore = "";
+				for(var i=0; i<categories.length; i++)
+					restore+=("&s="+categories[i]+"&v="+this.savedSocketAlloc[2*i]+","+this.savedSocketAlloc[2*i+1]);
+				var restoreStub = new rTorrentStub("?action=restoresocketalloc"+restore);
+				restoreStub.onSocketRestoreFinished = this.finishSetsettingsFailure.bind(this);
+				restoreStub.onIndeterminateFailure = this.finishIndeterminateFailure.bind(this);
+				restoreStub.onXMLFailure = restoreStub.finishSocketRestore.bind(restoreStub);
+				var finishRestoreError = function(status, text)
+				{
+					if($type(theWebUI.error)=="function")
+						theWebUI.error(status, text);
+					restoreStub.finishSocketRestore();
+				};
+				Ajax(restoreStub, true, restoreStub.finishSocketRestore.bind(restoreStub),
+					restoreStub.finishSocketRestore.bind(restoreStub), finishRestoreError);
+				return(xml);
+			}
+		}
+	}
+	if(this.isError())
+		this.finishSetsettingsFailure();
+	return(xml);
+}
+
+rTorrentStub.prototype.restoresocketallocParseXML = function(xml)
+{
+	this.finishSocketRestore();
+	return(xml);
+}
+
+rTorrentStub.prototype.restoresocketalloc = function()
+{
+	for(var i=0; i<this.ss.length; i++)
+	{
+		var bounds = this.vs[i].split(",");
+		var minCmd = new rXMLRPCCommand("system.sockets."+this.ss[i]+".min_alloc.set");
+		minCmd.addParameter("string",'');
+		minCmd.addParameter("i8",bounds[0]);
+		this.commands.push( minCmd );
+		var maxCmd = new rXMLRPCCommand("system.sockets."+this.ss[i]+".max_alloc.set");
+		maxCmd.addParameter("string",'');
+		maxCmd.addParameter("i8",bounds[1]);
+		this.commands.push( maxCmd );
+	}
+	this.commands.push( new rXMLRPCCommand("system.sockets.adjust_alloc") );
 }
 
 rTorrentStub.prototype.getsettings = function()
@@ -505,7 +690,7 @@ rTorrentStub.prototype.setprioritize = function()
 			}
 			case '1':
 			{
-				var cmd = new rXMLRPCCommand( "f.prioritize_first.enable" );
+				cmd = new rXMLRPCCommand( "f.prioritize_first.enable" );
 				cmd.addParameter("string",this.hashes[0]+":f"+this.vs[i]);
 				this.commands.push( cmd );
 				cmd = new rXMLRPCCommand( "f.prioritize_last.disable" );
@@ -515,7 +700,7 @@ rTorrentStub.prototype.setprioritize = function()
 			}
 			case '2':
 			{
-				var cmd = new rXMLRPCCommand( "f.prioritize_first.disable" );
+				cmd = new rXMLRPCCommand( "f.prioritize_first.disable" );
 				cmd.addParameter("string",this.hashes[0]+":f"+this.vs[i]);
 				this.commands.push( cmd );
 				cmd = new rXMLRPCCommand( "f.prioritize_last.enable" );
@@ -706,12 +891,12 @@ rTorrentStub.prototype.makeNextMultiCall = function()
 		this.hashes = [];
 		for(; this.commandOffset < this.commands.length; this.commandOffset++)
 		{
-			var cmd = this.commands[this.commandOffset];
+			cmd = this.commands[this.commandOffset];
 			var cmd_string=('<value><struct><member><name>methodName</name><value><string>'+
 				cmd.command+'</string></value></member><member><name>params</name><value><array><data>');
 			for(var j=0; j<cmd.params.length; j++)
 			{
-				var prm = cmd.params[j];
+				prm = cmd.params[j];
 				cmd_string += ('<value><'+prm.type+'>'+
 					prm.value+'</'+prm.type+'></value>');
 			}
@@ -738,7 +923,7 @@ rTorrentStub.prototype.getXMLValue = function(values,i)
 		while(!el.tagName)
 			el = el.childNodes[0];
 		ret = $type(el.textContent) ? el.textContent.trim() :
-			el.childNodes.length ? 
+			el.childNodes.length ?
 			el.childNodes[0].data : "";
 	}
 	return((ret==null) ? "" : ret);
@@ -750,7 +935,38 @@ rTorrentStub.prototype.processAction = function(actionSuffix, data)
 	return parseFunc in this ? this[parseFunc](data) : data;
 }
 
-rTorrentStub.prototype.getResponse = function(data) 
+// An XMLRPC fault delivered with an error status names the reason in faultString.
+// The envelope around it is not something to show a person, so hand back the
+// sentence; a body that is not a fault is returned as it came.
+function getXMLRPCFaultString(text)
+{
+	if((typeof(text) != "string") || (text.indexOf("faultString") < 0))
+		return(text);
+	var doc = null;
+	try { doc = $.parseXML(text); } catch(e) { return(text); }
+	if(!doc)
+		return(text);
+	var names = doc.getElementsByTagName("name");
+	for(var i=0; i<names.length; i++)
+		if(names[i].childNodes[0] && (names[i].childNodes[0].data == "faultString"))
+		{
+			var values = names[i].parentNode.getElementsByTagName("value");
+			if(values.length)
+				return($(values[0]).text());
+		}
+	return(text);
+}
+
+// plugins/httprpc/action.php names the daemon's state in X-rTorrent-State on the
+// one answer that establishes it, and says "unreachable" there. Reading it out of
+// band leaves the sentence in the body to the reader, in whatever language it is
+// written, and tells that answer apart from every other 500 a door can send.
+function rTorrentStateHeader(jqXHR)
+{
+	return(jqXHR.getResponseHeader("X-rTorrent-State"));
+}
+
+rTorrentStub.prototype.getResponse = function(data)
 {
 	var ret = "";
 	let responseData = data;
@@ -763,19 +979,35 @@ rTorrentStub.prototype.getResponse = function(data)
 		{
 			var names = data.getElementsByTagName('value');
 			this.faultString.push("XMLRPC Error: "+this.getXMLValue(names,2)+" ["+this.action+"]");
+			this.xmlRPCFault = true;
 		}
 		else
 		{
-			var names = data.getElementsByTagName('name');
+			names = data.getElementsByTagName('name');
 			if(names)
+			{
+				var memberFaults = [];
 				for(var i=0; i<names.length; i++)
 					if(names[i].childNodes[0].data=="faultString")
 					{
 						var values = names[i].parentNode.getElementsByTagName('value');
-						this.faultString.push("XMLRPC Error: "+this.getXMLValue(values,0)+" ["+this.action+"]");
+						memberFaults.push(this.getXMLValue(values,0));
 					}
+				if((this.action=="setsettings") && memberFaults.length)
+				{
+					var message = memberFaults[0];
+					if(memberFaults.length>1)
+						message+=" ("+(memberFaults.length-1)+" additional member fault"+
+							((memberFaults.length>2) ? "s" : "")+")";
+					this.faultString.push("XMLRPC Error: "+message+" ["+this.action+"]");
+				}
+				else
+					for(var j=0; j<memberFaults.length; j++)
+						this.faultString.push("XMLRPC Error: "+memberFaults[j]+" ["+this.action+"]");
+			}
 		}
-		responseData = this.processAction('ParseXML', responseData);
+		if(!this.xmlRPCFault)
+			responseData = this.processAction('ParseXML', responseData);
 	}
 	if(!this.isError())
 		ret = this.processAction('Response', responseData);
@@ -1067,6 +1299,7 @@ rTorrentStub.prototype.getalltrackersResponse = function(values)
  * @property {string} msg
  * @property {number} multi_file
  * @property {string} name
+ * @property {number} partially_done - 1 when every selected chunk is on disk, which a fully downloaded torrent also satisfies
  * @property {string} peers (format: "0 (0)")
  * @property {string} peers_actual - number with quotes (e.g.: "123")
  * @property {number} peers_all
@@ -1129,7 +1362,49 @@ rTorrentStub.prototype.listResponse = function(data)
 {
 	/** @type {ListResponseType} */
 	var ret = { labels: {}, labels_size: {}, torrents: {} };
+	// Admit the entire delta before changing the shared cache. PHP encodes empty
+	// maps as [] and sparse row deltas as objects, so validate merged rows.
+	var validMap = function(value) {
+		return value !== null && typeof value === "object" &&
+			(!Array.isArray(value) || value.length === 0);
+	};
+	var valid = validMap(data) && Number.isInteger(data.cid) &&
+		validMap(data.t) && (data.full === undefined || data.full === 0 || data.full === 1) &&
+		(data.d === undefined || (Array.isArray(data.d) && data.d.every(function(hash) {
+			return typeof hash === "string" && /^[a-f0-9]{40}$/i.test(hash);
+		})));
+	if(valid)
+	{
+		var deleted = new Set(data.d || []);
+		valid = Object.keys(data.t).every(function(hash) {
+			var values = data.t[hash];
+			if(!/^[a-f0-9]{40}$/i.test(hash) || values === null || typeof values !== "object")
+				return false;
+			if(!Object.keys(values).every(function(key) {
+				return /^(0|[1-9][0-9]*)$/.test(key) &&
+					(typeof values[key] === "string" || typeof values[key] === "number");
+			}))
+				return false;
+			var previous = !data.full && !deleted.has(hash) &&
+				theRequestManager.torrents[hash];
+			var merged = Object.assign({}, previous || {}, values);
+			return [4, 25, 29].every(function(key) { return typeof merged[key] === "string"; });
+		});
+	}
+	if(!valid)
+	{
+		this.invalidListResponse = true;
+		this.faultString.push("Invalid list response ["+this.action+"]");
+		return;
+	}
 	theRequestManager.cid = data.cid;
+	// A full answer lists every torrent there is, so anything held that it does
+	// not mention is gone. Deletions are reported against a previous state the
+	// server no longer has, and would otherwise never arrive.
+	if(data.full)
+		for( var hash in theRequestManager.torrents )
+			if(!(hash in data.t))
+				delete theRequestManager.torrents[hash];
 	if(data.d)
 		$.each( data.d, function( ndx, hash )
 		{
@@ -1153,7 +1428,6 @@ rTorrentStub.prototype.listResponse = function(data)
 		var state = 0;
 		var is_open = iv(values[0]);
 		var is_hash_checking = iv(values[1]);
-		var is_hash_checked = iv(values[2]);
 		var get_state = iv(values[3]);
 		var get_hashing = iv(values[23]);
 		var is_active = iv(values[28]);
@@ -1214,6 +1488,11 @@ rTorrentStub.prototype.listResponse = function(data)
 		torrent.free_diskspace = values[31];
 		torrent.private = values[32];
 		torrent.multi_file = iv(values[33]);
+		// 1 when every selected chunk is on disk. A fully downloaded torrent
+		// satisfies that too, so callers that mean "selected done but torrent
+		// incomplete" have to pair it with the percentage. iv() answers 0 for a
+		// missing value, so a daemon that does not send the field reads as 0.
+		torrent.partially_done = iv(values[34]);
 		torrent.seeds = torrent.seeds_actual + " (" + torrent.seeds_all + ")";
 		torrent.peers = torrent.peers_actual + " (" + torrent.peers_all + ")";
 		theRequestManager.onResponse('trt', [null].concat(values), hash, torrent);
@@ -1238,6 +1517,13 @@ rTorrentStub.prototype.logErrorMessages = function()
 function Ajax(URI, isASync, onComplete, onTimeout, onError, reqTimeout, partialData)
 {
 	var stub = URI instanceof rTorrentStub ? URI : new rTorrentStub(URI);
+	// A failed request and a rejected list reach the error callback with the
+	// same arguments, including the daemon state named by X-rTorrent-State.
+	var reportError = function(jqXHR, status, textStatus, response)
+	{
+		onError(status+" ["+textStatus+","+stub.action+"]", response,
+			rTorrentStateHeader(jqXHR));
+	};
 	var request = $.ajax(
 	{
 		type: stub.method,
@@ -1253,32 +1539,58 @@ function Ajax(URI, isASync, onComplete, onTimeout, onError, reqTimeout, partialD
 		traditional: true,
 		global: true
 	});
-	
+
 	request.fail(function(jqXHR, textStatus, errorThrown)
 	{
 		Ajax_UpdateTime(jqXHR);
-		
+
+		if((jqXHR.status == 401) && !stub.handleUnauthorizedAsError)
+			// Auth normally navigates globally. A request owning a terminal lock can
+			// opt into its scoped error callback so it can diagnose and release.
+		{
+			if(!theWebUI.authExpired)
+			{
+				theWebUI.authExpired = true;
+				window.location.reload();	// navigation -> auth layer redirects to login
+			}
+			stub = null;
+			return;
+		}
+		// A local timeout or status-zero transport failure cannot prove whether a
+		// settings write (or its restore) completed remotely. A scoped callback
+		// keeps that Save locked instead of treating the client timer as a barrier.
+		if(((jqXHR.status == 0) || (textStatus=="timeout")) && stub.finishIndeterminateFailure())
+		{
+			stub = null;
+			return;
+		}
 		if((textStatus=="timeout") && ($type(onTimeout) == "function"))
 			onTimeout();
 		else if($type(onError) == "function")
 		{
 			var status = "Status unavailable";
 			var response = "Response unavailable";
-			try { status = jqXHR.status; response = jqXHR.responseText; } catch(e) {};				
+			try { status = jqXHR.status; response = jqXHR.responseText; } catch(e) {};
 			if( stub.dataType=="script" )
 				response = errorThrown;
-			onError(status+" ["+textStatus+","+stub.action+"]",response);
+			else
+				response = getXMLRPCFaultString(response);
+			reportError(jqXHR, status, textStatus, response);
 		}
+		stub.finishSetsettingsFailure();
 		stub = null; // Cleanup memory leak
 	});
-	
+
 	request.done(function(data, textStatus, jqXHR)
 	{
 		Ajax_UpdateTime(jqXHR);
-		
-		stub.logErrorMessages();
+
+		var responseText = stub.getResponse(data);
+		// The error callback reports a rejected list; a second notice would repeat it.
+		var rejectedList = stub.invalidListResponse && ($type(onError)=="function");
+		if(!rejectedList)
+			stub.logErrorMessages();
 		if(!stub.isError()) {
-			var responseText = stub.getResponse(data);
 			if (partialData) {
 				if (responseText instanceof Object && !(responseText instanceof XMLDocument)) {
 					// merge responses for this.hashes with previous partialData
@@ -1295,24 +1607,32 @@ function Ajax(URI, isASync, onComplete, onTimeout, onError, reqTimeout, partialD
 			} else {
 				if(stub.listRequired) {
 					Ajax("?list=1", isASync, onComplete, onTimeout, onError, reqTimeout);
-				} else {	
+				} else {
 					switch($type(onComplete)) {
 						case "function": {
 							onComplete(responseText);
 							break;
-						}				
+						}
 						case "array": {
 							onComplete[0].apply(onComplete[1], new Array(responseText, onComplete[2]));
 							break;
-						}	
-					}	
+						}
+					}
 				}
 			}
 			responseText = null; // Cleanup memory leak
 		}
+		else
+		{
+			if(rejectedList)
+				reportError(jqXHR, jqXHR.status, "parsererror", "Invalid list response");
+			if(stub.xmlRPCFault)
+				stub.finishSetsettingsFailure();
+			stub.finishXMLFailure();
+		}
 		stub = null; // Cleanup memory leak
 	});
-	
+
 	// Nullify ajax request varriables to cleanup up memory leaks
 	request.onreadystatechange = null;
 	request = null;
@@ -1320,25 +1640,43 @@ function Ajax(URI, isASync, onComplete, onTimeout, onError, reqTimeout, partialD
 
 function Ajax_UpdateTime(jqXHR)
 {
+	// X-Server-Timestamp is emitted by CachedEcho::send for this purpose and is
+	// produced when the response is, including on the conditional-GET path.
+	// Date can arrive from any intermediary, so a cached or revalidated
+	// response carries the age of the cache into every duration on the page.
+	var timestamp = jqXHR.getResponseHeader("X-Server-Timestamp");
+	var serverDelta = (timestamp != null) ? new Date().getTime()-iv(timestamp)*1000 : null;
+
+	if(theWebUI.serverDeltaTime==0 && serverDelta!==null)
+		theWebUI.serverDeltaTime = serverDelta;
+
 	if(theWebUI.deltaTime==0)
 	{
-		var diff = 0;
-		try { diff = new Date().getTime()-Date.parse(jqXHR.getResponseHeader("Date")); } catch(e) { diff = 0; };
-		theWebUI.deltaTime = iv(diff);
-		diff = null; // Cleanup memory leak
+		if(serverDelta!==null)
+			theWebUI.deltaTime = serverDelta;
+		else
+		{
+			var diff = 0;
+			try { diff = new Date().getTime()-Date.parse(jqXHR.getResponseHeader("Date")); } catch(e) { diff = 0; };
+			theWebUI.deltaTime = iv(diff);
+			diff = null; // Cleanup memory leak
+		}
 	}
-	
-	if(theWebUI.serverDeltaTime==0)
-	{
-		var timestamp = jqXHR.getResponseHeader("X-Server-Timestamp");
-		if(timestamp != null)
-			theWebUI.serverDeltaTime = new Date().getTime()-iv(timestamp)*1000;
-		timestamp = null; // Cleanup memory leak
-	}
+	timestamp = null; // Cleanup memory leak
 	jqXHR = null; // Cleanup memory leak
 }
 
-$(document).ready(function() 
+// Recalculate time deltas after browser sleep/tab suspension
+document.addEventListener("visibilitychange", function()
+{
+	if(!document.hidden)
+	{
+		theWebUI.deltaTime = 0;
+		theWebUI.serverDeltaTime = 0;
+	}
+});
+
+$(document).ready(function()
 {
 	var timer = null;
 

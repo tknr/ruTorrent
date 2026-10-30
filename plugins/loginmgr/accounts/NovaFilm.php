@@ -2,7 +2,7 @@
 
 class NovaFilmAccount extends commonAccount
 {
-	public $url = "http://novafilm.tv";
+	public $url = "https://novafilm.tv";
 
 	protected function isOK($client)
 	{
@@ -12,7 +12,7 @@ class NovaFilmAccount extends commonAccount
 	{
 		$is_result_fetched = false;
 		$client->referer = $this->url;
-       		if($client->fetch( $this->url."/auth/login","POST","application/x-www-form-urlencoded", 
+       		if($client->fetch( $this->url."/auth/login","POST","application/x-www-form-urlencoded",
 			"username=".rawurlencode($login)."&password=".rawurlencode($password) ))
 		{
 			$client->setcookies();
@@ -22,6 +22,6 @@ class NovaFilmAccount extends commonAccount
 	}
 	public function test($url)
 	{
-		return( stripos( $url, $this->url."/download/" )===0 );
+		return(self::urlAddresses($url,array("novafilm.tv"),"https","/download/"));
 	}
 }

@@ -12,13 +12,13 @@ if(!isset($HTTP_RAW_POST_DATA))
 if(isset($HTTP_RAW_POST_DATA))
 {
 	$vars = explode('&', $HTTP_RAW_POST_DATA);
-	$announce_list = array(); 
+	$announce_list = array();
 	$trackers = array();
 	$comment = '';
 	$trackersCount = 0;
 	$private = 0;
 	$setComment = false;
-	$setTrackers = false;	
+	$setTrackers = false;
 	$setPrivate = false;
 	foreach($vars as $var)
 	{
@@ -36,10 +36,10 @@ if(isset($HTTP_RAW_POST_DATA))
 			$setComment = intval($parts[1]);
 		else
 		if($parts[0]=="set_trackers")
-			$setTrackers = intval($parts[1]);			
+			$setTrackers = intval($parts[1]);
 		else
 		if($parts[0]=="set_private")
-			$setPrivate = intval($parts[1]);			
+			$setPrivate = intval($parts[1]);
 		else
 		if($parts[0]=="tracker")
 		{
@@ -63,9 +63,9 @@ if(isset($HTTP_RAW_POST_DATA))
 		$announce_list[] = $trackers;
 	if($setComment || $setTrackers || $setPrivate)
 	{
-		foreach($hashes as $hash)	
+		foreach($hashes as $hash)
 		{
-			$req = new rXMLRPCRequest( array(		
+			$req = new rXMLRPCRequest( array(
 				new rXMLRPCCommand("get_session"),
 				new rXMLRPCCommand("d.is_open",$hash),
 				new rXMLRPCCommand("d.is_active",$hash),
@@ -76,7 +76,6 @@ if(isset($HTTP_RAW_POST_DATA))
 				new rXMLRPCCommand("d.get_connection_seed",$hash),
 				new rXMLRPCCommand("d.get_complete",$hash),
 				) );
-			$throttle = null;
 			if(rTorrentSettings::get()->isPluginRegistered("throttle"))
 				$req->addCommand(new rXMLRPCCommand("d.get_throttle_name",$hash));
 			if($req->run() && !$req->fault)
@@ -92,7 +91,7 @@ if(isset($HTTP_RAW_POST_DATA))
 				}
 				if($fname)
 				{
-					$torrent = new Torrent( $fname );		
+					$torrent = new Torrent( $fname );
 					if( !$torrent->errors() )
 					{
 						if($setPrivate)
@@ -119,20 +118,37 @@ if(isset($HTTP_RAW_POST_DATA))
 						}
 						if(isset($torrent->{'rtorrent'}))
 							unset($torrent->{'rtorrent'});
+						$addition = array(
+							getCmd("d.set_custom3")."=1",
+							rTorrent::additionCommand("d.set_connection_seed",
+								rXMLRPCRequest::unescapeValue($req->val[7])),
+						);
+						// d.get_throttle_name is only asked for when the throttle
+						// plugin is registered, so without it there is no throttle
+						// to forward and nothing is appended. An entry that is not
+						// a command would refuse the whole reload.
 						if(count($req->val)>9)
-							$throttle = getCmd("d.set_throttle_name=").$req->val[9];
-						$eReq = new rXMLRPCRequest( new rXMLRPCCommand("d.erase", $hash ) );
-						if($eReq->run() && !$eReq->fault)
-						{
-							$label = rawurldecode($req->val[5]);
-							if(!rTorrent::sendTorrent($torrent, $isStart, false, $req->val[6], $label, false, ($req->val[8]==1), false,
-							        array(	getCmd("d.set_custom3")."=1",
-									getCmd("d.set_connection_seed=").$req->val[7],
-									$throttle)))
-								$errors[] = array('desc'=>"theUILang.errorAddTorrent", 'prm'=>$fname);
-						}
+							$addition[] = rTorrent::additionCommand("d.set_throttle_name",
+								rXMLRPCRequest::unescapeValue($req->val[9]));
+						// Asked before the erase, not after. sendTorrent()
+						// refuses an addition list whole, and by the time it
+						// says so the download it would have reloaded is gone.
+						if(!rTorrent::areValidAdditions($addition))
+							$errors[] = array('desc'=>"theUILang.errorAddTorrent", 'prm'=>$fname);
 						else
-							$errors[] = array('desc'=>"theUILang.badLinkTorTorrent", 'prm'=>'');
+						{
+							$eReq = new rXMLRPCRequest( new rXMLRPCCommand("d.erase", $hash ) );
+							if($eReq->run() && !$eReq->fault)
+							{
+								$label = rawurldecode(rXMLRPCRequest::unescapeValue($req->val[5]));
+								if(!rTorrent::sendTorrent($torrent, $isStart, false,
+								        rXMLRPCRequest::unescapeValue($req->val[6]), $label, false,
+								        ($req->val[8]==1), false, $addition))
+									$errors[] = array('desc'=>"theUILang.errorAddTorrent", 'prm'=>$fname);
+							}
+							else
+								$errors[] = array('desc'=>"theUILang.badLinkTorTorrent", 'prm'=>'');
+						}
 					}
 					else
 						$errors[] = array('desc'=>"theUILang.errorReadTorrent", 'prm'=>$fname);

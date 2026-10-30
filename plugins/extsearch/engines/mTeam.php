@@ -8,7 +8,7 @@ class mTeamEngine extends commonEngine
 
 	protected static function disableEntityLoader()
 	{
-		if( function_exists('libxml_disable_entity_loader') )
+		if( (PHP_VERSION_ID < 80000) && function_exists('libxml_disable_entity_loader') )
 		{
 			libxml_disable_entity_loader( true );
 		}
@@ -29,7 +29,7 @@ class mTeamEngine extends commonEngine
 
 	public function action($what,$cat,&$ret,$limit,$useGlobalCats)
 	{
-		$url = 'http://mteam.fr';
+		$url = 'https://mteam.fr';
 		if($useGlobalCats)
 			$categories = array( 'all'=>'' );
 		else

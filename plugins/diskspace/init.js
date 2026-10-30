@@ -3,21 +3,29 @@ plugin.loadMainCSS();
 
 plugin.setValue = function( full, free )
 {
-        var percent = iv(full ? (full-free)/full*100 : 0);
-        if(percent>100)
-	        percent = 100;
+	var used = full-free;
+	var percent = iv(full ? used/full*100 : 0);
+	if(percent>100)
+		percent = 100;
 	$("#meter-disk-value").width( percent+"%" ).css( { "background-color": (new RGBackground()).setGradient(this.prgStartColor,this.prgEndColor,percent).getColor(),
 		visibility: !percent ? "hidden" : "visible" } );
 	if(plugin.freeBytesInMeter) $("#meter-disk-text").text(theConverter.bytes(free));
 	else $("#meter-disk-text").text(percent+'%');
-	$("#meter-disk-pane").prop("title", theConverter.bytes(free)+"/"+theConverter.bytes(full));
+	if(theUILang.diskUsage) {
+		$("#meter-disk-pane").prop("title",
+			theUILang.diskUsage
+				.replace(/%USED%/, theConverter.bytes(used))
+				.replace(/%TOTAL%/, theConverter.bytes(full))
+				.replace(/%FREE%/, theConverter.bytes(free) + ", " + iv(full ? free/full*100 : 0) + "%")
+		);
+	}
 
 	if($.noty && plugin.allStuffLoaded)
 	{
 		if((free<plugin.notifySpaceLimit) && !plugin.noty)
 			plugin.noty = $.noty(
 			{
-				text: theUILang.diskNotification, 
+				text: theUILang.diskNotification,
 				layout : 'bottomLeft',
 				type: 'error',
 				timeout : false,
@@ -51,7 +59,7 @@ plugin.init = function()
 
 		plugin.check = function()
 		{
-			var AjaxReq = jQuery.ajax(
+			jQuery.ajax(
 			{
 				type: "GET",
 				timeout: theWebUI.settings["webui.reqtimeout"],
@@ -59,7 +67,6 @@ plugin.init = function()
 			        cache: false,
 				url : "plugins/diskspace/action.php",
 				dataType : "json",
-				cache: false,
 				success : function(data)
 				{
 					plugin.setValue( data.total, data.free );

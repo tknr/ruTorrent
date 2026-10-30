@@ -12,7 +12,7 @@ plugin.loadLang();
 const catlist = theWebUI.categoryList;
 const ptrackersPanelArgs = [
 	[['ptrackers_all', {text: theUILang.All, icon: 'all'}]],
-	[(hash) => theWebUI.torrentTrackerIds.get(hash) ?? []]
+	[(hash) => [...new Set(theWebUI.torrentTrackerIds.get(hash) ?? [])]]
 ];
 
 const plabelEntries = catlist.refreshPanel.plabel.bind(catlist);
@@ -49,10 +49,14 @@ catlist.refreshPanel.ptrackers = () => [
 plugin.config = theWebUI.config;
 theWebUI.config = function()
 {
-	if(plugin.canChangeColumns())
+	const changeColumns = plugin.canChangeColumns();
+	if(changeColumns)
 	{
 		theWebUI.tables.trt.columns.push({ text: theUILang.Tracker, width: '100px', id: 'tracker', type: TYPE_STRING});
-		plugin.config.call(this);
+	}
+	plugin.config.apply(this, arguments);
+	if(changeColumns)
+	{
 		plugin.reqId = theRequestManager.addRequest("trk", null, function(hash,tracker,value)
 		{
 			const domain = theWebUI.getTrackerName( tracker.name );
@@ -76,7 +80,7 @@ if(!$type(theWebUI.getTrackerName))
 		var domain = '';
 		if(announce)
 		{
-			var parts = announce.match(/^(?:([^:\/?#]+):)?(?:\/\/((?:(([^:@]*):?([^:@]*))?@)?([^:\/?#]*)(?::(\d*))?))((((?:[^?#\/]*\/)*)([^?#]*))(?:\?([^#]*))?(?:#(.*))?)/);
+			var parts = announce.match(/^(?:([^:/?#]+):)?(?:\/\/((?:(([^:@]*):?([^:@]*))?@)?([^:/?#]*)(?::(\d*))?))((((?:[^?#/]*\/)*)([^?#]*))(?:\?([^#]*))?(?:#(.*))?)/);
 			if(parts && (parts.length>6))
 			{
 				domain = parts[6];
@@ -99,6 +103,8 @@ if(!$type(theWebUI.getTrackerName))
 	}
 }
 
+if (plugin.hideTrackers && plugin.hideTrackers.length) {	var _origGetTrackerName = theWebUI.getTrackerName;	theWebUI.getTrackerName = function(announce) {		var domain = _origGetTrackerName(announce);		if ($.inArray(domain, plugin.hideTrackers) != -1) domain = "";		return domain;	};}
+
 plugin.contextMenuEntries = catlist.contextMenuEntries.bind(catlist);
 catlist.contextMenuEntries = function(panelId, labelId) {
 	const entries = plugin.contextMenuEntries(panelId, labelId);
@@ -108,7 +114,7 @@ catlist.contextMenuEntries = function(panelId, labelId) {
 				? (labelId.startsWith('clabel__') ? labelId.substring(8) : 'nlb')
 				: labelId.substring(1);
 			return entries.concat([
-				[theUILang.EditIcon, `theWebUI.showTracklabelsDialog('${lbl}');`]
+				[theUILang.EditIcon, () => theWebUI.showTracklabelsDialog(lbl)]
 			]);
 		}
 	}
@@ -298,6 +304,7 @@ plugin.onRemove = function()
 		theWebUI.getTable("trt").removeColumnById("tracker");
 		if(thePlugins.isInstalled("rss"))
 			theWebUI.getTable("rss").removeColumnById("tracker");
+		if(thePlugins.isInstalled("extsearch"))
+			theWebUI.getTable("teg").removeColumnById("tracker");
 	}
 }
-

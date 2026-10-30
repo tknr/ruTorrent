@@ -46,7 +46,7 @@ class rRatio
 		for($i=0; $i<count($this->rat); $i++)
 		{
 			$this->rat[$i]["upload"] /= 1024;
-		}		
+		}
 	}
 	public function pad()
 	{
@@ -123,18 +123,33 @@ class rRatio
 	public function setHandlers()
 	{
 		global $checkTimesInterval;
-		$req =  new rXMLRPCRequest( $this->hasTimes() ? 
-			rTorrentSettings::get()->getAbsScheduleCommand("ratio",$checkTimesInterval*60,
+		$req =  new rXMLRPCRequest( $this->hasTimes() ?
+			rTorrentSettings::get()->getAlignedScheduleCommand("ratio",$checkTimesInterval*60,
 				getCmd('execute').'={sh,-c,'.escapeshellarg(Utility::getPHP()).' '.escapeshellarg(dirname(__FILE__).'/update.php').' '.escapeshellarg(User::getUser()).' &}' ) :
 			rTorrentSettings::get()->getRemoveScheduleCommand("ratio") );
 		return($req->success());
 	}
 	public function isCorrect($no)
 	{
-		return( ($no>=0) && 
+		return( ($no>=0) &&
 			($no<count($this->rat)) &&
 		        ($this->rat[$no]["name"]!=""));
 	}
+	// A download's data is deleted by the erasedata plugin, which needs the file
+	// list read over RPC while the download still exists. Hand the erase to that
+	// plugin's helper instead of erasing here, so a ratio group deletes the same
+	// way the web UI's "Remove and delete data" does. Backgrounded: a foreground
+	// execute would block rtorrent while the helper waits for rtorrent to answer.
+	public function getEraseWithDataCommand($force)
+	{
+		$prefix = getCmd("d.stop=")."; ".getCmd("d.close=")."; ";
+		$helper = dirname(dirname(__FILE__))."/erasedata/erase.php";
+		if(!is_file($helper))
+			return($prefix.getCmd("d.set_custom5=").$force."; ".getCmd("d.erase="));
+		return($prefix.'execute.nothrow.bg={'.Utility::getPHP().','.$helper.
+			',$'.getCmd("d.get_hash").'=,'.$force.','.User::getUser().'}');
+	}
+
 	public function correct()
 	{
 		$cmd = new rXMLRPCCommand("d.multicall",array("default",getCmd("d.get_hash=")));
@@ -151,7 +166,7 @@ class rRatio
 			        {
 					if($req->i8s[$no*MAX_RATIO*2+$i*2]==1)
 						$req1->addCommand(new rXMLRPCCommand("view.set_visible",array($hash,"rat_".$i)));
-				}						
+				}
 			}
 			return(($req1->getCommandsCount()==0) || ($req1->success()));
 		}
@@ -166,14 +181,25 @@ class rRatio
 		$req1 = new rXMLRPCRequest(new rXMLRPCCommand("view_list"));
 		if($req1->run() && !$req1->fault)
 		{
-			$insCmd = getCmd('branch=');
+			// Best-effort insert of the rat_* persistent views that view.list
+			// reports missing. Run as its own request so any fault here
+			// (typically "View with same name already inserted" when the
+			// session restored rat_* but our cached view.list lagged) does
+			// not propagate into the settings multicall below and sink the
+			// whole plugin start with a misleading "Plugin failed to start".
+			$insertReq = new rXMLRPCRequest();
+			for($i=0; $i<MAX_RATIO; $i++)
+			{
+				if(!in_array("rat_".$i,$req1->val))
+					$insertReq->addCommand(new rXMLRPCCommand("group.insert_persistent_view", array("", "rat_".$i)));
+			}
+			if($insertReq->getCommandsCount())
+				$insertReq->run();
+
 			$req = new rXMLRPCRequest();
 			for($i=0; $i<MAX_RATIO; $i++)
 			{
-				$insCmd .= (getCmd('d.views.has=').'rat_'.$i.',,');
 				$rat = $this->rat[$i];
-				if(!in_array("rat_".$i,$req1->val))
-					$req->addCommand(new rXMLRPCCommand("group.insert_persistent_view", array("", "rat_".$i)));
 				if($this->isCorrect($i))
 				{
 					$req->addCommand( rTorrentSettings::get()->getRatioGroupCommand("rat_".$i,'ratio.enable',array("")) );
@@ -184,38 +210,38 @@ class rRatio
 					{
 						case RAT_STOP:
 						{
-							$req->addCommand(new rXMLRPCCommand("system.method.set", array("group.rat_".$i.".ratio.command", 
+							$req->addCommand(new rXMLRPCCommand("system.method.set", array("group.rat_".$i.".ratio.command",
 								getCmd("d.stop=")."; ".getCmd("d.close="))));
 							break;
 						}
 						case RAT_STOP_AND_REMOVE:
 						{
-							$req->addCommand(new rXMLRPCCommand("system.method.set", array("group.rat_".$i.".ratio.command", 
+							$req->addCommand(new rXMLRPCCommand("system.method.set", array("group.rat_".$i.".ratio.command",
 								getCmd("d.stop=")."; ".getCmd("d.close=")."; ".getCmd("view.set_not_visible")."=rat_".$i."; ".getCmd("d.views.remove")."=rat_".$i)));
 							break;
 						}
 						case RAT_ERASE:
 						{
-							$req->addCommand(new rXMLRPCCommand("system.method.set", array("group.rat_".$i.".ratio.command", 
+							$req->addCommand(new rXMLRPCCommand("system.method.set", array("group.rat_".$i.".ratio.command",
 								getCmd("d.stop=")."; ".getCmd("d.close=")."; ".getCmd("d.erase="))));
 							break;
 						}
 						case RAT_ERASEDATA:
 						{
-							$req->addCommand(new rXMLRPCCommand("system.method.set", array("group.rat_".$i.".ratio.command", 
-								getCmd("d.stop=")."; ".getCmd("d.close=")."; ".getCmd("d.set_custom5=")."1; ".getCmd("d.erase="))));
+							$req->addCommand(new rXMLRPCCommand("system.method.set", array("group.rat_".$i.".ratio.command",
+								$this->getEraseWithDataCommand("1"))));
 							break;
 						}
 						case RAT_ERASEDATAALL:
 						{
 							$req->addCommand(new rXMLRPCCommand("system.method.set", array("group.rat_".$i.".ratio.command",
-								getCmd("d.stop=")."; ".getCmd("d.close=")."; ".getCmd("d.set_custom5=")."2; ".getCmd("d.erase="))));
+								$this->getEraseWithDataCommand("2"))));
 							break;
 						}
 						default:
 						{
 							$thr = "thr_".($rat["action"]-RAT_FIRSTTHROTTLE);
-							$req->addCommand(new rXMLRPCCommand("system.method.set", array("group.rat_".$i.".ratio.command", 
+							$req->addCommand(new rXMLRPCCommand("system.method.set", array("group.rat_".$i.".ratio.command",
 								getCmd('cat').'=$'.getCmd("d.stop").'=,$'.getCmd("d.set_throttle_name=").$thr.',$'.getCmd('d.start='))));
 							break;
 						}
@@ -223,8 +249,20 @@ class rRatio
 				}
 			}
 
+			// Apply the default ratio group to newly added torrents, but only when
+			// the torrent is not already in one of the rat_* views (e.g. one assigned
+			// by the extratio rules plugin). The membership checks are grouped with
+			// the (or,...) object form: rtorrent >=0.16.16 made `branch` strictly
+			// ternary and silently drops surplus arguments, so the previous flat
+			// many-argument branch left the trailing view.set_visible unreachable and
+			// the default group was never applied (issue #3100). The object syntax is
+			// understood by rtorrent 0.9.8 and the 0.16.x series alike.
+			$insCmd = getCmd('branch').'=('.getCmd('or');
+			for($i=0; $i<MAX_RATIO; $i++)
+				$insCmd .= ',('.getCmd('d.views.has').',rat_'.$i.')';
+			$insCmd .= '),,';
 			if($this->isCorrect($this->default-1))
-				$req->addCommand(rTorrentSettings::get()->getOnInsertCommand(array('_ratio'.User::getUser(), 
+				$req->addCommand(rTorrentSettings::get()->getOnInsertCommand(array('_ratio'.User::getUser(),
 					$insCmd.getCmd('view.set_visible=').'rat_'.($this->default-1))));
 			else
 				$req->addCommand(rTorrentSettings::get()->getOnInsertCommand(array('_ratio'.User::getUser(), getCmd('cat='))));
@@ -253,7 +291,7 @@ class rRatio
 			if(isset($_REQUEST['rat_max'.$i]))
 			        $arr["max"] = Math::iclamp($_REQUEST['rat_max'.$i]);
 			if(isset($_REQUEST['rat_upload'.$i]))
-			{        
+			{
 				$upload = $_REQUEST['rat_upload'.$i];
 				$arr["upload"] = $upload == 0 ? 0 : Math::fRoundClamp($upload);
 			}

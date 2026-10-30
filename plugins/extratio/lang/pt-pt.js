@@ -3,10 +3,10 @@
  *
  * Portuguese (Portugal) language file.
  *
- * Author: 
+ * Author:
  */
 
- theUILang.ratioRulesManager	= "Gestor de regras";
+ theUILang.ratioRulesManager	= "Gestor de regras de racio";
  theUILang.mnu_ratiorule	= "Regras de racio";
  theUILang.ratAddRule		= "Adicionar";
  theUILang.ratDelRule		= "Apagar";

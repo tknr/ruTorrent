@@ -3,15 +3,22 @@
  *
  * Russian language file.
  *
- * Author: 
+ * Author:
  */
 
  theUILang.checkWebsiteNotFound = "Плагин check_port не будет работать: неверные настройки";
  theUILang.checkPort		= "Проверить статус порта";
+ theUILang.checkingPort		= "Checking port status";
  theUILang.portStatus		= [
  				  "Статус порта неизвестен",
  				  "Порт закрыт",
  				  "Порт открыт"
  				  ];
+ theUILang.notAvailable = "-";
+ theUILang.portNotConfigured = "Not available on this server";
+
+ theUILang.forcePort		= "Задать конкретный порт...";
+ theUILang.forcePortPrompt	= "Укажите порт прослушивания (1-65535):";
+ theUILang.forcePortInvalid	= "Недопустимый номер порта.";
 
 thePlugins.get("check_port").langLoaded();

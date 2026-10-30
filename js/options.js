@@ -21,6 +21,7 @@ const theOptionsWindow = {
 					...[
 						['webui.confirm_when_deleting', theUILang.Confirm_del_torr],
 						['webui.alternate_color', theUILang.Alt_list_bckgnd],
+						['webui.compact_rows', theUILang.Compact_rows],
 						['webui.ignore_timeouts', theUILang.dontShowTimeouts],
 						['webui.fullrows', theUILang.fullTableRender],
 						['webui.no_delaying_draw', theUILang.showScrollTables],
@@ -33,10 +34,12 @@ const theOptionsWindow = {
 						['webui.selected_labels.keep', theUILang.KeepSelectedLabels],
 						['webui.effects', theUILang.UIEffects],
 						['webui.speedintitle', theUILang.showSpeedInTitle],
+						['webui.normalize_torrent_name', theUILang.normalizeTorrentName],
 					].map(([id, label]) => $("<div>").addClass("col-md-6").append(
 						$("<input>").attr({type: "checkbox", id: id}),
 						$("<label>").attr({for: id}).text(label),
 					)),
+					$("<div>").addClass("w-100"),
 					...[
 						["webui.update_interval", theUILang.Update_GUI_every + ": ", theUILang.ms, 3000],
 						["webui.reqtimeout", theUILang.ReqTimeout + ": ", theUILang.ms, 5000],
@@ -187,9 +190,14 @@ const theOptionsWindow = {
 						$("<label>").attr({for: id}).text(label + ": "),
 					),
 					$("<div>").addClass("col-md-4").append(
-						$("<input>").attr({type: "number", id: id}).prop("maxlength", 6),
+						$("<input>").attr({type: "number", id: id}).addClass("num").prop("maxlength", 6),
 					),
 				)),
+				$("<div>").addClass("row").attr({id: "socket_alloc_budget_row"}).hide().append(
+					$("<div>").addClass("col-md-12").append(
+						$("<span>").attr({id: "socket_alloc_budget"}),
+					),
+				),
 			),
 		);
 		const stgBtCont = $("<div>").attr({id: "st_bt"}).addClass("stg_con").append(
@@ -296,7 +304,7 @@ const theOptionsWindow = {
 					].flatMap(([id, maxlength]) => [
 						$("<div>").addClass("col-md-6").append(
 							$("<label>").attr({for: id}).text(id),
-						), 
+						),
 						$("<div>").addClass("col-md-6").append(
 							$("<input>").attr({type: "text", id: id}).prop("maxlength", maxlength),
 						),
